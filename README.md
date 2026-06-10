@@ -58,3 +58,39 @@ You can close the window and walk away. The droplet will automatically boot up, 
 When it finishes, Packer will save a pristine Snapshot named `rivendell-4.4.1-custom-mp3-[timestamp]` to your DigitalOcean account (under the **Images** -> **Snapshots** tab) and destroy the temporary build server. 
 
 Finally, the factory droplet will power itself off. Once you see the dot turn gray in your DigitalOcean dashboard, the build is complete. You can delete the powered-off droplet and start deploying your brand new Golden Image Snapshot to production!
+
+## Manual / Debug Build
+
+If you want to watch the build process live, catch any errors without the droplet shutting off, or if the zero-touch script fails, do the following:
+
+1. Spin up a new baseline Ubuntu Droplet on DigitalOcean. Do **NOT** use a Startup Script. Ensure your SSH key is selected.
+2. SSH into the Droplet: `ssh root@<DROPLET_IP>`
+3. Run the following commands interactively. (Make sure to replace your token!)
+
+```bash
+# 1. Inject your Token
+export DIGITALOCEAN_TOKEN="dop_v1_YOUR_TOKEN_HERE"
+
+# 2. Wait for cloud-init and background apt lock
+cloud-init status --wait || true
+systemctl stop unattended-upgrades || true
+while fuser /var/lib/dpkg/lock-frontend >/dev/null 2>&1 || fuser /var/lib/dpkg/lock >/dev/null 2>&1 || fuser /var/lib/apt/lists/lock >/dev/null 2>&1; do sleep 5; done
+dpkg --configure -a || true
+
+# 3. Install HashiCorp Packer and Git natively
+wget -O- https://apt.releases.hashicorp.com/gpg | gpg --dearmor -o /usr/share/keyrings/hashicorp-archive-keyring.gpg
+echo "deb [signed-by=/usr/share/keyrings/hashicorp-archive-keyring.gpg] https://apt.releases.hashicorp.com \$(lsb_release -cs) main" | tee /etc/apt/sources.list.d/hashicorp.list
+
+export DEBIAN_FRONTEND=noninteractive
+apt-get update -y
+apt-get install -y packer git
+
+# 4. Pull the repo containing the scripts, HCL blueprint, and APPS folder
+git clone https://github.com/anjeleno/rivendell-packer-build.git /root/rivendell-build ; cd /root/rivendell-build ; chmod +x *.sh
+
+# 5. Initialize Packer
+packer init rivendell.pkr.hcl
+
+# 6. Execute the Packer Build
+packer build rivendell.pkr.hcl
+```
