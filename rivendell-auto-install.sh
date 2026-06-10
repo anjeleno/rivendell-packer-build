@@ -269,6 +269,11 @@ install_rivendell() {
     # --- ARCHITECTURE SWAP ROUTINE ---
     if [[ "$SYS_ARCH" == "x86_64" ]]; then
         echo "Executing Production AMD64 Path (Using Paravel Base Script Installer)..."
+        
+        # FIX: Shift execution context to a globally readable directory to bypass 
+        # 'pathconf: Permission denied' errors during privilege drops in Packer.
+        cd /tmp || exit 1
+        
         wget -q https://software.paravelsystems.com/ubuntu/dists/noble/main/install_rivendell.sh
         chmod +x install_rivendell.sh
         # Run non-interactively passing default option
