@@ -272,7 +272,11 @@ install_rivendell() {
         wget -q https://software.paravelsystems.com/ubuntu/dists/noble/main/install_rivendell.sh
         chmod +x install_rivendell.sh
         # Run non-interactively passing default option
-        sudo DEBIAN_FRONTEND=noninteractive ./install_rivendell.sh <<< "$INSTALL_TYPE"
+        # Use an explicit heredoc to guarantee non-interactive stdin mapping to prevent pathconf errors
+        sudo DEBIAN_FRONTEND=noninteractive ./install_rivendell.sh <<INST
+$INSTALL_TYPE
+INST
+
 
     elif [[ "$SYS_ARCH" == "aarch64" || "$SYS_ARCH" == "arm64" ]]; then
         echo "Executing Custom ARM64 Engineering Path (Bypassing Architecture Block)..."
