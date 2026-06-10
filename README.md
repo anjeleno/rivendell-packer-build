@@ -35,10 +35,13 @@ cd /root/rivendell-build
 # Ensure the installer script is executable
 chmod +x rivendell-auto-install.sh
 
-# 4. Execute the Packer Build (routing output to a log file just in case)
+# 4. Initialize Packer (Download DigitalOcean plugin)
+packer init rivendell.pkr.hcl
+
+# 5. Execute the Packer Build (routing output to a log file just in case)
 packer build rivendell.pkr.hcl > /root/packer-build.log 2>&1
 
-# 5. Shut down the droplet when the build is completely finished
+# 6. Shut down the droplet when the build is completely finished
 poweroff
 ```
 
