@@ -11,7 +11,7 @@ apt-get update
 apt-get install -y packer git
 
 # 3. Pull your repository containing the scripts, HCL blueprint, and APPS folder
-git clone https://github.com/anjeleno/rivendell-cloud.git /root/rivendell-build
+git clone https://github.com/anjeleno/rivendell-packer-build.git /root/rivendell-build
 cd /root/rivendell-build
 
 # Ensure the installer script is executable
