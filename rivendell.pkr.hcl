@@ -24,6 +24,12 @@ source "digitalocean" "rivendell_golden" {
 build {
   sources = ["source.digitalocean.rivendell_golden"]
 
+  provisioner "shell" {
+    inline = [
+      "mkdir -p /opt/APPS"
+    ]
+  }
+
   provisioner "file" {
     source      = "./rivendell-auto-install.sh"
     destination = "/opt/rivendell-install.sh"
@@ -47,7 +53,7 @@ build {
   }
 
   provisioner "shell" {
-    pause_before = "30s"
+    pause_before = "45s"
     inline = [
       "sudo -u rd -H bash -c '/opt/rivendell-install.sh --phase2'"
     ]
