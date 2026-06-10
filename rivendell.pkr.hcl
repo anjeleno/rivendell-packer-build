@@ -14,7 +14,7 @@ variable "do_api_token" {
 
 source "digitalocean" "rivendell_golden" {
   api_token     = var.do_api_token
-  image         = "ubuntu-26-04-x64" # Standard AMD64 for Universal compatibility
+  image         = "ubuntu-24-04-x64" # Standard AMD64 for Universal compatibility
   region        = "nyc3"             
   size          = "s-2vcpu-4gb"      # Compilation requires a bit of horsepower
   ssh_username  = "root"
@@ -26,18 +26,18 @@ build {
 
   provisioner "file" {
     source      = "./rivendell-auto-install.sh"
-    destination = "/tmp/rivendell-install.sh"
+    destination = "/opt/rivendell-install.sh"
   }
 
   provisioner "file" {
     source      = "./APPS/"
-    destination = "/tmp/APPS/"
+    destination = "/opt/APPS/"
   }
 
   provisioner "shell" {
     inline = [
-      "chmod +x /tmp/rivendell-install.sh",
-      "/tmp/rivendell-install.sh --phase1"
+      "chmod +x /opt/rivendell-install.sh",
+      "/opt/rivendell-install.sh --phase1"
     ]
   }
 
@@ -49,13 +49,13 @@ build {
   provisioner "shell" {
     pause_before = "30s"
     inline = [
-      "sudo -u rd -H bash -c '/tmp/rivendell-install.sh --phase2'"
+      "sudo -u rd -H bash -c '/opt/rivendell-install.sh --phase2'"
     ]
   }
 
   provisioner "shell" {
     inline = [
-      "rm -rf /tmp/rivendell-install.sh /tmp/APPS",
+      "rm -rf /opt/rivendell-install.sh /opt/APPS",
       "rm -f /root/.ssh/authorized_keys",
       "history -c"
     ]

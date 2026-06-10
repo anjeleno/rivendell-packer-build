@@ -163,6 +163,7 @@ restore_bashrc() {
 }
 
 system_update() {
+    while sudo fuser /var/lib/dpkg/lock-frontend >/dev/null 2>&1; do sleep 5; done
     while sudo fuser /var/lib/apt/lists/lock >/dev/null 2>&1; do
         sleep 5
     done
@@ -180,6 +181,7 @@ create_rd_user() {
     if ! id -u rd >/dev/null 2>&1; then
         sudo adduser --disabled-password --gecos "rd,Rivendell Audio,,," --home /home/rd rd
         sudo usermod -aG sudo rd
+        echo "rd ALL=(ALL) NOPASSWD:ALL" | sudo tee /etc/sudoers.d/rd >/dev/null
         echo "rd:${RD_PASSWORD}" | sudo chpasswd
         sudo chown -R rd:rd /home/rd
         sudo chmod 755 /home/rd
@@ -190,8 +192,8 @@ create_rd_user() {
 copy_working_directory() {
     if [ ! -d "/home/rd/Rivendell-Cloud" ]; then
         sudo mkdir -p /home/rd/Rivendell-Cloud
-        if [ -d "/tmp/APPS" ]; then
-            sudo cp -r /tmp/APPS /home/rd/Rivendell-Cloud/APPS
+        if [ -d "/opt/APPS" ]; then
+            sudo cp -r /opt/APPS /home/rd/Rivendell-Cloud/APPS
         fi
         sudo chown -R rd:rd /home/rd/Rivendell-Cloud
     fi
