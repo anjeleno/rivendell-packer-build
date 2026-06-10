@@ -11,8 +11,9 @@ You do not need to install anything on your local computer to build this image. 
 1. Generate a **Personal Access Token** (API Key) in your DigitalOcean dashboard.
 2. Go to DigitalOcean and click **Create Droplet**.
 3. Choose the cheapest **Ubuntu** droplet available (e.g. $4/month).
-4. In the **Advanced Options** section during Droplet creation, check the box for **Add user data** (or "Startup scripts").
-5. Copy and paste the script below into the text box.
+4. Select your saved **SSH Key** (this is required by DO and will not interfere with the build).
+5. In the **Advanced Options** section during Droplet creation, check the box for **Add user data** (or "Startup scripts").
+6. Copy and paste the script below into the text box.
    **(Make sure to replace `dop_v1_YOUR_TOKEN_HERE` with your actual DigitalOcean API Key!)**
 
 ```bash
@@ -22,34 +23,38 @@ You do not need to install anything on your local computer to build this image. 
 # 1. Inject your DigitalOcean API Token
 export DIGITALOCEAN_TOKEN="dop_v1_YOUR_TOKEN_HERE"
 
-# 2. Install HashiCorp Packer and Git natively
+# 2. Wait for cloud-init and background apt lock
+cloud-init status --wait || true
+systemctl stop unattended-upgrades || true
+while fuser /var/lib/dpkg/lock-frontend >/dev/null 2>&1 || fuser /var/lib/dpkg/lock >/dev/null 2>&1 || fuser /var/lib/apt/lists/lock >/dev/null 2>&1; do sleep 5; done
+dpkg --configure -a || true
+
+# 3. Install HashiCorp Packer and Git natively
 wget -O- https://apt.releases.hashicorp.com/gpg | gpg --dearmor -o /usr/share/keyrings/hashicorp-archive-keyring.gpg
 echo "deb [signed-by=/usr/share/keyrings/hashicorp-archive-keyring.gpg] https://apt.releases.hashicorp.com $(lsb_release -cs) main" | tee /etc/apt/sources.list.d/hashicorp.list
-apt-get update
+export DEBIAN_FRONTEND=noninteractive
+apt-get update -y
 apt-get install -y packer git
 
-# 3. Pull your repository containing the scripts, HCL blueprint, and APPS folder
+# 4. Pull your repository containing the scripts, HCL blueprint, and APPS folder
 git clone https://github.com/anjeleno/rivendell-packer-build.git /root/rivendell-build
 cd /root/rivendell-build
+chmod +x *.sh
 
-# Ensure the installer script is executable
-chmod +x rivendell-auto-install.sh
-
-# 4. Initialize Packer (Download DigitalOcean plugin)
+# 5. Initialize Packer (Download DigitalOcean plugin)
 packer init rivendell.pkr.hcl
 
-# 5. Execute the Packer Build (routing output to a log file just in case)
-packer build rivendell.pkr.hcl > /root/packer-build.log 2>&1
-
-# 6. Shut down the droplet when the build is completely finished
-poweroff
+# 6. Execute the Packer Build (routing output to a log file just in case)
+# We use '&& poweroff' so that if Packer FAILS, the droplet stays online.
+# This allows you to SSH into the factory droplet and cat /root/packer-build.log to read the exact error.
+packer build rivendell.pkr.hcl > /root/packer-build.log 2>&1 && poweroff
 ```
 
-6. Click **Create Droplet**. 
+7. Click **Create Droplet**. 
 
 ### What happens next?
 You can close the window and walk away. The droplet will automatically boot up, install Packer, and spin up a *second* temporary build server. The build server will compile Rivendell, apply your MP3 patches, and ingest your configurations. 
 
 When it finishes, Packer will save a pristine Snapshot named `rivendell-4.4.1-custom-mp3-[timestamp]` to your DigitalOcean account (under the **Images** -> **Snapshots** tab) and destroy the temporary build server. 
 
-Finally, the $4 factory droplet will power itself off. Once you see the dot turn gray in your DigitalOcean dashboard, the build is complete. You can delete the powered-off droplet and start deploying your brand new Golden Image Snapshot to production!
+Finally, the factory droplet will power itself off. Once you see the dot turn gray in your DigitalOcean dashboard, the build is complete. You can delete the powered-off droplet and start deploying your brand new Golden Image Snapshot to production!

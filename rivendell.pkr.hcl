@@ -26,8 +26,12 @@ build {
 
   provisioner "shell" {
     inline = [
-      "mkdir -p /opt/APPS"
+      "mkdir -p /opt/APPS",
+      "cloud-init status --wait || true",
+      "sudo systemctl disable --now apt-daily.timer apt-daily-upgrade.timer unattended-upgrades || true",
+      "echo "DPkg::Lock::Timeout \"600\";" | sudo tee /etc/apt/apt.conf.d/99timeout",
     ]
+  }
   }
 
   provisioner "file" {
@@ -42,28 +46,41 @@ build {
 
   provisioner "shell" {
     inline = [
-      "chmod +x /opt/rivendell-install.sh",
-      "/opt/rivendell-install.sh --phase1"
+      "mkdir -p /opt/APPS",
+      "cloud-init status --wait || true",
+      "sudo systemctl disable --now apt-daily.timer apt-daily-upgrade.timer unattended-upgrades || true",
+      "echo "DPkg::Lock::Timeout \"600\";" | sudo tee /etc/apt/apt.conf.d/99timeout",
     ]
   }
-
-  provisioner "shell" {
-    expect_disconnect = true
-    inline            = ["reboot"]
-  }
-
-  provisioner "shell" {
-    pause_before = "45s"
-    inline = [
-      "sudo -u rd -H bash -c '/opt/rivendell-install.sh --phase2'"
-    ]
   }
 
   provisioner "shell" {
     inline = [
-      "rm -rf /opt/rivendell-install.sh /opt/APPS",
-      "rm -f /root/.ssh/authorized_keys",
-      "history -c"
+      "mkdir -p /opt/APPS",
+      "cloud-init status --wait || true",
+      "sudo systemctl disable --now apt-daily.timer apt-daily-upgrade.timer unattended-upgrades || true",
+      "echo "DPkg::Lock::Timeout \"600\";" | sudo tee /etc/apt/apt.conf.d/99timeout",
     ]
+  }
+  }
+
+  provisioner "shell" {
+    inline = [
+      "mkdir -p /opt/APPS",
+      "cloud-init status --wait || true",
+      "sudo systemctl disable --now apt-daily.timer apt-daily-upgrade.timer unattended-upgrades || true",
+      "echo "DPkg::Lock::Timeout \"600\";" | sudo tee /etc/apt/apt.conf.d/99timeout",
+    ]
+  }
+  }
+
+  provisioner "shell" {
+    inline = [
+      "mkdir -p /opt/APPS",
+      "cloud-init status --wait || true",
+      "sudo systemctl disable --now apt-daily.timer apt-daily-upgrade.timer unattended-upgrades || true",
+      "echo "DPkg::Lock::Timeout \"600\";" | sudo tee /etc/apt/apt.conf.d/99timeout",
+    ]
+  }
   }
 }

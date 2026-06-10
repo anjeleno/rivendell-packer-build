@@ -106,7 +106,7 @@ update_backup_script() {
 
 enable_firewall() {
     echo "Enforcing baseline firewall rules..."
-    sudo apt-get install -y ufw
+    sudo apt-get -o Dpkg::Use-Pty=0 -o Dpkg::Options::="--force-confdef" -o Dpkg::Options::="--force-confold" install -y ufw
     sudo ufw allow 8000/tcp
     sudo ufw allow ssh
     sudo ufw --force enable
@@ -163,12 +163,28 @@ restore_bashrc() {
 }
 
 system_update() {
-    while sudo fuser /var/lib/dpkg/lock-frontend >/dev/null 2>&1; do sleep 5; done
-    while sudo fuser /var/lib/apt/lists/lock >/dev/null 2>&1; do
-        sleep 5
+    echo "Waiting for cloud-init to complete..."
+    sudo cloud-init status --wait || true
+
+    echo "Stopping unattended-upgrades to prevent apt lock conflicts..."
+    sudo systemctl stop unattended-upgrades || true
+    sudo systemctl disable unattended-upgrades || true
+
+    echo "Waiting for apt locks to release..."
+    while sudo fuser /var/lib/dpkg/lock-frontend >/dev/null 2>&1 || sudo fuser /var/lib/dpkg/lock >/dev/null 2>&1 || sudo fuser /var/lib/apt/lists/lock >/dev/null 2>&1 || sudo fuser /var/cache/apt/archives/lock >/dev/null 2>&1; do
+        echo "Apt is locked. Waiting 10 seconds..."
+        sleep 10
     done
-    sudo apt-get update && sudo apt-get dist-upgrade -y
+
+    echo "Fixing any interrupted dpkg states..."
+    sudo dpkg --configure -a || true
+
+    echo "Updating system..."
+    sudo DEBIAN_FRONTEND=noninteractive apt-get update -y
+    sudo DEBIAN_FRONTEND=noninteractive apt-get dist-upgrade -y -o Dpkg::Options::="--force-confdef" -o Dpkg::Options::="--force-confold"
     mark_step_completed "system_update"
+
+
 }
 
 set_hostname() {
@@ -216,18 +232,18 @@ configure_shell_profile() {
 }
 
 install_tasksel() {
-    sudo apt-get install -y tasksel
+    sudo apt-get -o Dpkg::Use-Pty=0 -o Dpkg::Options::="--force-confdef" -o Dpkg::Options::="--force-confold" install -y tasksel
     mark_step_completed "install_tasksel"
 }
 
 install_mate() {
     # Non-interactive target execution for MATE environment installation
-    sudo DEBIAN_FRONTEND=noninteractive tasksel install ubuntu-mate-desktop
+    sudo DEBIAN_FRONTEND=noninteractive apt-get install -y ubuntu-mate-desktop
     mark_step_completed "install_mate"
 }
 
 install_xrdp() {
-    sudo apt-get install -y xrdp dbus-x11
+    sudo apt-get -o Dpkg::Use-Pty=0 -o Dpkg::Options::="--force-confdef" -o Dpkg::Options::="--force-confold" install -y xrdp dbus-x11
     mark_step_completed "install_xrdp"
 }
 
@@ -262,8 +278,8 @@ install_rivendell() {
         echo "Executing Custom ARM64 Engineering Path (Bypassing Architecture Block)..."
         
         # 1. Scaffold system layer dependencies manually required by base system
-        sudo apt-get update
-        sudo apt-get install -y mariadb-server mariadb-client apache2 libapache2-mod-cext \
+        sudo apt-get -o Dpkg::Use-Pty=0 -o Dpkg::Options::="--force-confdef" -o Dpkg::Options::="--force-confold" update
+        sudo apt-get -o Dpkg::Use-Pty=0 -o Dpkg::Options::="--force-confdef" -o Dpkg::Options::="--force-confold" install -y mariadb-server mariadb-client apache2 libapache2-mod-cext \
                                 libqt5sql5-mysql cutmp3 vorbis-tools flac lame normalize-audio \
                                 libsoundtouch6 shared-mime-info sudo
 
@@ -294,7 +310,7 @@ EOF
 
     # --- SOURCE BUILD & PATCH INTERCEPT (RUNS UNIVERSALLY) ---
     echo "Beginning source tree interception & compilation..."
-    sudo apt-get install -y git devscripts equivs dpkg-dev
+    sudo apt-get -o Dpkg::Use-Pty=0 -o Dpkg::Options::="--force-confdef" -o Dpkg::Options::="--force-confold" install -y git devscripts equivs dpkg-dev
 
     sudo mkdir -p /usr/local/src
     cd /usr/local/src
@@ -418,7 +434,7 @@ EOF
 
     echo "Deploying newly-built target application suite..."
     cd ..
-    sudo dpkg -i rivendell_*.deb rivendell-server_*.deb || sudo apt-get install -f -y
+    sudo dpkg -i rivendell_*.deb rivendell-server_*.deb || sudo apt-get -o Dpkg::Use-Pty=0 -o Dpkg::Options::="--force-confdef" -o Dpkg::Options::="--force-confold" install -f -y
 
     sudo systemctl daemon-reload || true
     sudo systemctl restart rdcatchd || true
@@ -435,7 +451,7 @@ touch_pypad() {
 }
 
 install_broadcasting_tools() {
-    sudo apt-get install -y icecast2 jackd2 qjackctl liquidsoap vlc vlc-plugin-jack
+    sudo apt-get -o Dpkg::Use-Pty=0 -o Dpkg::Options::="--force-confdef" -o Dpkg::Options::="--force-confold" install -y icecast2 jackd2 qjackctl liquidsoap vlc vlc-plugin-jack
     mark_step_completed "install_broadcasting_tools"
 }
 
