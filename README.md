@@ -94,3 +94,9 @@ packer init rivendell.pkr.hcl
 # 6. Execute the Packer Build
 packer build rivendell.pkr.hcl
 ```
+# 7 Reset + Pull changes from repo
+```
+git fetch --all
+git reset --hard origin/main
+packer build rivendell.pkr.hcl
+```
