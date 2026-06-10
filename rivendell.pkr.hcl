@@ -60,3 +60,4 @@ build {
       "history -c"
     ]
   }
+}
