@@ -366,9 +366,10 @@ EOF
     # 4. Checkout the tag
     git checkout tags/v4.4.1 -b v4.4.1-patched
 
-    # 5. Inject the unified MP3 patch
-    # We are now in the root of the repo, so paths match the patch exactly.
-    sudo tee mp3_ingest.patch > /dev/null << 'END_OF_PATCH'
+# 5. Inject the unified MP3 patch using git apply
+    # We use 'git apply' because it is much more tolerant of whitespace differences 
+    # than the standard 'patch' utility.
+    cat << 'END_OF_PATCH' > mp3_ingest.patch
 --- a/schema/rivendell.sql
 +++ b/schema/rivendell.sql
 @@ -450,6 +450,7 @@
@@ -468,8 +469,8 @@ EOF
 +    }
 END_OF_PATCH
 
-    # 6. Apply patch, build, and install
-    patch -p1 < mp3_ingest.patch
+    # Apply the patch using git apply
+    git apply --ignore-whitespace mp3_ingest.patch
     mk-build-deps --install --remove --tool="apt-get -y" debian/control
     dpkg-buildpackage -us -uc -b
     
