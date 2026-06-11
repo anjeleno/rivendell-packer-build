@@ -276,135 +276,68 @@ EOF
         sudo chmod 644 /etc/rd.conf
     fi
 
-    UBUNTU_VERSION=$(lsb_release -rs)
-    SYS_ARCH=$(uname -m)
+    echo "Executing Rivendell Core Build Pipeline (Universal Architecture)..."
 
-    echo "Executing Rivendell Core Target Pipeline..."
-
-    echo "Detected Architecture: $SYS_ARCH | OS Version: $UBUNTU_VERSION"
-
-    # FIX: Shift execution context to a globally readable directory to bypass 
-    # 'pathconf: Permission denied' errors during privilege drops in Packer.
-    # Placing this above the architecture check covers both AMD64 and ARM64 automatically.
+    # FIX: Shift execution context to /tmp to bypass pathconf errors
     cd /tmp || exit 1
 
-    # --- ARCHITECTURE SWAP ROUTINE ---
-    # We now use the Git Clone method for ALL architectures to maintain consistency
-    # and guarantee that your custom patches are applied every time.
-    
-    echo "Executing Rivendell Core Build Pipeline..."
-    
-    # Keep the manual system dependencies for both architectures
+    # 1. Install system layer dependencies (Universal for both architectures)
     sudo apt-get update
-    sudo apt-get install -y mariadb-server mariadb-client apache2 libapache2-mod-cext \
-                         libqt5sql5-mysql cutmp3 vorbis-tools flac lame normalize-audio \
-                         libsoundtouch6 shared-mime-info sudo
+    sudo apt-get -o Dpkg::Use-Pty=0 -o Dpkg::Options::="--force-confdef" -o Dpkg::Options::="--force-confold" install -y \
+        mariadb-server mariadb-client apache2 libapache2-mod-cext \
+        libqt5sql5-mysql cutmp3 vorbis-tools flac lame normalize-audio \
+        libsoundtouch6 shared-mime-info sudo git devscripts equivs \
+        dpkg-dev build-essential debhelper patch
 
-    # ... (Keep your groupadd and limits.d logic here) ...
-
-    # Skip the 'wget' and './install_rivendell.sh' entirely.
-    # Proceed directly to the # --- SOURCE BUILD & PATCH INTERCEPT --- section.
-
-        # FIX: The Paravel script pulls down heavy desktop packages. 
-        # Purge them immediately after the installer finishes to shrink the Golden Image.
-        echo "Purging unnecessary desktop bloatware..."
-        sudo apt-get purge -y libreoffice* evolution* transmission* rhythmbox* celluloid* hexchat* laptop-detect
-        sudo apt-get autoremove --purge -y
-        sudo apt-get clean
-
-    elif [[ "$SYS_ARCH" == "aarch64" || "$SYS_ARCH" == "arm64" ]]; then
-        echo "Executing Custom ARM64 Engineering Path (Bypassing Architecture Block)..."
-        
-        # 1. Scaffold system layer dependencies manually required by base system
-        sudo apt-get -o Dpkg::Use-Pty=0 -o Dpkg::Options::="--force-confdef" -o Dpkg::Options::="--force-confold" update
-        sudo apt-get -o Dpkg::Use-Pty=0 -o Dpkg::Options::="--force-confdef" -o Dpkg::Options::="--force-confold" install -y mariadb-server mariadb-client apache2 libapache2-mod-cext \
-                                libqt5sql5-mysql cutmp3 vorbis-tools flac lame normalize-audio \
-                                libsoundtouch6 shared-mime-info sudo
-
-        # 2. Replicate standard Paravel group structural configurations
-        sudo groupadd -g 514 rivendell || true
-        sudo usermod -aG rivendell rd || true
-        
-        # 3. Provision real-time audio access controls
-        sudo tee /etc/security/limits.d/rivendell.conf > /dev/null <<EOF
+    # 2. Replicate Paravel group/permissions
+    sudo groupadd -g 514 rivendell || true
+    sudo usermod -aG rivendell rd || true
+    
+    # 3. Provision real-time audio access
+    sudo tee /etc/security/limits.d/rivendell.conf > /dev/null <<EOF
 @rivendell       hard    rtprio          95
 @rivendell       soft    rtprio          80
 @rivendell       hard    memlock         unlimited
 @rivendell       soft    memlock         unlimited
 EOF
 
-        # 4. Generate local sample configuration to safely trigger build steps
-        if [ ! -f /etc/rd.conf ]; then
-            sudo mkdir -p /etc
-            sudo tee /etc/rd.conf > /dev/null <<EOF
-[mySQL]
-Loginname=rduser
-Password=rduser
-Database=Rivendell
-Hostname=localhost
-EOF
-        fi
-    fi
-
-# --- SOURCE BUILD & PATCH INTERCEPT ---
-    echo "Beginning source tree interception & compilation (Git Clone Method)..."
-    
-    # 1. Install necessary build-essential tools
-    sudo apt-get -y install git devscripts equivs dpkg-dev build-essential debhelper patch
-
-    # 2. Set up working directory
+    # 4. Source Build & Patch
     BUILD_DIR="/usr/local/src/rivendell-build"
     sudo mkdir -p $BUILD_DIR
     sudo chmod 777 $BUILD_DIR
     cd $BUILD_DIR
     
-    # 3. Clone and enter the repository
     rm -rf rivendell
     git clone https://github.com/ElvishArtisan/rivendell.git
     cd rivendell
-    
-    # 4. Checkout the tag
     git checkout tags/v4.4.1 -b v4.4.1-patched
 
-# 5. Inject the unified MP3 patch via Base64 to avoid encoding corruption
-    # The string below is the Base64 representation of the correct patch file
-    echo "LS0tIGEvc2NoZW1hL3JpdmVuZGVsbC5zcWwKKysrIGIvc2NoZW1hL3JpdmVuZGVsbC5zcWwKQEAgLTQ1MCw2ICs0NTAsNyBAQAogICBERVNUSU5BVElPTiB2YXJjaGFyKDI1NSkgZGVmYXVsdCBOVUxMLAogICBDVVRfQ1JFQVRJT04gdGlueWlud(4pIE5PVCBOVUxMIGRlZmF1bHQgJzAnLAogICBDUkVBVEVfR1JPVVAgdmFyY2hhcig2NCkgZGVmYXVsdCBOVUxMLAorICBDT0RJTkdfRk9STUFUIGludDgxMSkgTk9UIE5VTEwgZGVmYXVsdCAnLTEnLAogICBBVVRPVFJJTV9MRVZFTCBpbnQoMTEpIE5PVCBOVUxMIGRlZmF1bHQgJzAnLAogICBOT1JNQUxJWkVfTEVWRUwgaW50KDExKSBOT1QgTlVMTCBkZWZhdWx0ICcwJywKICAgUFJJTUFSWSBLRVkgIChJRCkKCi0tLSBhL3V0aWxzL3JkaW1wb3J0L3JkaW1wb3J0LmNwcAorKysgYi91dGlscy9yZGltcG9ydC9yZGltcG9ydC5jcHAKQEAgLTEwNSw2ICsxMDUsNyBAQAogICBwcmludGYoIiAgLS1tZXRhZGF0YS1wYXR0ZXJuPTxwYXR0ZXJuPlxuIik7CiAgIHByaW50ZigiICAtLWF1dG90cmltLWxldmVsPTxsZXZlbD5cbiIpOwogICBwcmludGYoIiAgLS1ub3JtYWxpemF0aW9uLWxldmVsPTxsZXZlbD5cbiIpOworICBwcmludGYoIiAgLS1hdWRpby1mb3J1YXQ9PDAxMz4gKDA9UENNMTYsIDM9TVBFRyBMYXllciBJSUkpXG4iKTsKICAgcHJpbnRmKCIgIC0tdXNlLWhpZ2gtY2FydFxuIik7CiAgIHByaW50ZigiICAtLXVzZS1sb3ctY2FydFxuIik7CiB9CkBAIC0xNDAsNiArMTQxLDcgQEAKICAgaW50IG1ldGFkYXRhX29mZnNldD0wOwogICBpbnQgYXV0b3RyaW1fbGV2ZWw9MDsKICAgaW50IG5vcm1hbGl6ZV9sZXZlbD0wOworICBpbnQgYXVkaW9fZm9ybWF0PS0xOwogICBib29sIHVzZV9oaWdoX2NhcnQ9ZmFsc2U7CiAgIGJvb2wgdXNlX2xvd19jYXJ0PWZhbHNlOwogICBib29sIGRlbGV0ZV9zb3VyY2U9ZmFsc2U7CkBAIC0yMTUsNiArMjE3LDkgQEAKICAgfSBlbHNlIGlmKHN0cm5jbXAoYXJndltpXSwiLS1ub3JtYWxpemF0aW9uLWxldmVsPSIsMjIpPT0wKSB7CiAgICAgbm9ybWFsaXplX2xldmVsPWF0b2koJmFyZ3ZbaV1bMjJdKTsKIAorICB9IGVsc2UgaWYoc3RybmNtcChhcmd2W2ldLCItLWF1ZGlvLWZvcm1hdD0iLDE1KT09MCkgeworICAgIGF1ZGlvX2Zvcm1hdD1hdG9pKCZhcmd2W2ldWzE1XSk7CisKICAgfSBlbHNlIGlmKHN0cm5jbXAoYXJndltpXSwiLS11c2UtaGlnaC1jYXJ0IiwxNSk9PTApIHsKICAgICB1c2VfaGlnaF9jYXJ0PXRydWU7CiAKQEAgLTM0NSw2ICszNTAsMTEgQEAKICAgICBwb3N0LmFkZFZhcmlhYmxlKCJOT1JNQUxJWkVfTEVWRUwiLFFTdHJpbmc6Om51bWJlcihub3JtYWxpemVfbGV2ZWwpKTsKICAgfQogCisgIC8vIEFwcGVuZCB0aGUgY3VzdG9tIGZvcm1hdCBmbGFnIGlmIGV4cGxpY2l0bHkgc2V0IGJ5IHRoZSB1c2VyCisgIGlmKGF1ZGlvX2Zvcm1hdCA9PSAwIHx8IGF1ZGlvX2Zvcm1hdCA9PSAzKSB7CisgICAgIHBvc3QuYWRkVmFyaWFibGUoIkZPUk1BVCIsUVN0cmluZzo6bnVtYmVyKGF1ZGlvX2Zvcm1hdCkpOworICB9CisKICAgIGlmKHVzZV9oaWdoX2NhcnQpIHsKICAgICBwb3N0LmFkZFZhcmlhYmxlKCJVU0VfSElHSF9DQVJUIiwiMSIpOwogICB9Ci0tLSBhL3dlYi9yZHhwb3J0L3JkeHBvcnQuY3BwCisrKyBiL3dlYi9yZHhwb3J0L3JkeHBvcnQuY3BwCkBAIC00ODUsMTIgKzQ4NSwyNCBAQAogICAgICAgIHJldHVybjsKICAgIH0KIAotICAvLyBEZWZhdWx0IHRvIHRoZSBIb3N0J3MgZ2xvYmFsbHkgY29uZmlndXJlZCBBdWRpbyBGb3JtYXQKKyAgLy8gRmV0Y2ggdGhlIEhvc3QncyBnbG9iYWxseSBjb25maWd1cmVkIEF1ZGlvIEZvcm1hdAogICAgaW50IHRhcmdldEZvcm1hdCA9IGhvc3RRdWVyeS52YWx1ZSgwKS50b0ludCgpOwogCisgIC8vIElOVEVSQ0VQVDogQ2hlY2sgaWYgdGhlIGNsaWVudCBleHBsaWNpdGx5IHJlcXVlc3RlZCBhIHNwZWNpZmljIGNvZGVjIGZvcm1hdAorICAgamYoY2dpSGFzUGFyYW0oIkZPUk1BVCIpKSB7CisgICAgIGludCByZXF1ZXN0ZWRGb3JtYXQgPSBjZ2lQYXJhbUFzSW50KCJGT1JNQVQiKTsKKyAgICAgaWYocmVxdWVzdGVkRm9ybWF0ID09IDAgfHwgcmVxdWVzdGVkRm9ybWF0ID09IDMpIHsKKyAgICAgICB0YXJnZXRGb3JtYXQgPSByZXF1ZXN0ZWRGb3JtYXQ7CisgICAgICAgc3lzbG9nKExPR19JTkZPLCAicmR4cG9ydDogSG9zdCBmb3JtYXQgb3ZlcnJpZGRlbi4gVXNpbmcgZXhwbGljaXQgZm9ybWF0ICVkIiwgdGFyZ2V0Rm9ybWF0KTsKKyAgICAgfQorICAgfQorCiAgICAvLyBQcm9jZWVkIHdpdGggdGhlIHN0YW5kYXJkIHRyYW5zY29kaW5nIGFzc2lnbm1lbnQgdXNpbmcgdGFyZ2V0Rm9ybWF0CiAgICBSRFhwb3J0VHJhbnNjb2RlciB0cmFuc2NvZGVyOwogICAgdHJhbnNjb2Rlci5zZXRGb3JtYXQodGFyZ2V0Rm9ybWF0KTsKLS0tIGEvZGFlbW9ucy9yZGNhdGNodC9yZGNhdGNodC5jcHAKKysrIGIvZGFlbW9ucy9yZGNhdGNodC9yZGNhdGNodC5jcHAKQEAgLTYyMCw3ICs2MjAsNyBAQAogdm9pZCBSRENDYXRjaDo6UHJvY2Vzc0Ryb3Bib3hlcygpCiB7CiAgIFFTUUxRdWVyeSBxdWVyeTsKLSAgcXVlcnkuZXhlYygic2VsZWN0IElELCBQQVRILCBHUk9VUF9OQU1FLCBBVVRPVFJJTV9MRVZFTCwgTk9STUFMSVpFX0xFVkVMIEZST00gRFJPUEJPWEVTIFdIRVJFIF হোস্টX05BTUU9JyIgKyBIb3N0TmFtZSArICInIik7CisgIHF1ZXJ5LmV4ZWMoIlNFTEVDVCBJRCwgUEFUSCwgR1JPVVBfTkFNRSwgQVVUT1RSSU1fTEVWRUwsIE5PUk1BTElaRV9MRVZFTCwgQ09ESU5HX0ZPUk1BVCBGUk9NIERST1BCT1hFUyBXSEVSRSBIT1NUX05BTUU9JyIgKyBIb3N0TmFtZSArICInIik7CiAgIAogICB3aGlsZShxdWVyeS5uZXh0KCkpIHsKICAgICBRU3RyaW5nIHBhdGggPSBxdWVyeS52YWx1ZSgxKS50b1N0cmluZygpOwogICAgIGludCBhdXRvdHJpbSA9IHF1ZXJ5LnZhbHVlKDMpLnRvSW50KCk7CiAgICAgaW50IG5vcm1hbGl6ZSA9IHF1ZXJ5LnZhbHVlKDQpLnRvSW50KCk7CisgICAgaW50IGNvZGluZ19mb3JtYXQgPSBxdWVyeS52YWx1ZSg1KS50b0ludCgpOwogCiAKQEAgLTY0NSw2ICs2NDYsMTEgQEAKICAgICBpZihub3JtYWxpemUgIT0gMCkgewogICAgICAgcG9zdC5hZGRWYXJpYWJsZSgiTk9STUFMSVpFX0xFVkVMIiwgUVN0cmluZzo6bnVtYmVyKG5vcm1hbGl6ZSkpOwogICAgIH0KKyAgICAKKyAgICBpZihjb2RpbmdfZm9ybWF0ID09IDAgfHwgY29kaW5nX2Zvcm1hdCA9PSAzKSB7CisgICAgICBwb3N0LmFkZFZhcmlhYmxlKCJGT1JNQVQiLCBRU3RyaW5nOjpudW1iZXIoY29kaW5nX2Zvcm1hdCkpOworICAgIH0=" | base64 -d > mp3_ingest.patch
-
-    # Apply the patch using git apply
+    # 5. Inject patch
+    echo "LS0tIGEvc2NoZW1hL3JpdmVuZGVsbC5zcWwKKysrIGIvc2NoZW1hL3JpdmVuZGVsbC5zcWwKQEAgLTQ1MCw2ICs0NTAsNyBAQAogICBERVNUSU5BVElPTiB2YXJjaGFyKDI1NSkgZGVmYXVsdCBOVUxMLAogICBDVVRfQ1JFQVRJT04gdGlueWludCg0KSBOT1QgTlVMTCBkZWZhdWx0ICcwJywKICAgQ1JFQVRFX0dST1VQIHZhcmNoYXIoNjQpIGRlZmF1bHQgTlVMTCwKKyAgQ09ESU5HX0ZPUk1BVCBpbnQoMTEpIE5PVCBOVUxMIGRlZmF1bHQgJy0xJywKICAgQVVUT1RSSU1fTEVWRUwgaW50KDExKSBOT1QgTlVMTCBkZWZhdWx0ICcwJywKICAgTk9STUFMSVpFX0xFVkVMIGludCgxMSkgTk9UIE5VTEwgZGVmYXVsdCAnMCcsCiAgIFBSSU1BUlkgS0VZICAoSUQpCgotLS0gYS91dGlscy9yZGltcG9ydC9yZGltcG9ydC5jcHAKKysrIGIvdXRpbHMvcmRpbXBvcnQvcmRpbXBvcnQuY3BwCkBAIC0xMDUsNiArMTA1LDcgQEAKICAgcHJpbnRmKCIgIC0tbWV0YWRhdGEtcGF0dGVybj08cGF0dGVybj5cbiIpOwogICBwcmludGYoIiAgLS1hdXRvdHJpbS1sZXZlbD08bGV2ZWw+XG4iKTsKICAgcHJpbnRmKCIgIC0tbm9ybWFsaXplLWxldmVsPTxsZXZlbD5cbiIpOworICBwcmludGYoIiAgLS1hdWRpby1mb3J1YXQ9PDAxMz4gKDA9UENNMTYsIDM9TVBFRyBMYXllciBJSUkpXG4iKTsKICAgcHJpbnRmKCIgIC0tdXNlLWhpZ2gtY2FydFxuIik7CiAgIHByaW50ZigiICAtLXVzZS1sb3ctY2FydFxuIik7CiB9CkBAIC0xNDAsNiArMTQxLDcgQEAKICAgaW50IG1ldGFkYXRhX29mZnNldD0wOwogICBpbnQgYXV0b3RyaW1fbGV2ZWw9MDsKICAgaW50IG5vcm1hbGl6ZV9sZXZlbD0wOworICBpbnQgYXVkaW9fZm9ybWF0PS0xOwogICBib29sIHVzZV9oaWdoX2NhcnQ9ZmFsc2U7CiAgIGJvb2wgdXNlX2xvd19jYXJ0PWZhbHNlOwogICBib29sIGRlbGV0ZV9zb3VyY2U9ZmFsc2U7CkBAIC0yMTUsNiArMjE3LDkgQEAKICAgfSBlbHNlIGlmKHN0cm5jbXAoYXJndltpXSwiLS1ub3JtYWxpemF0aW9uLWxldmVsPSIsMjIpPT0wKSB7CiAgICAgbm9ybWFsaXplX2xldmVsPWF0b2koJmFyZ3ZbaV1bMjJdKTsKIAorICB9IGVsc2UgaWYoc3RybmNtcChhcmd2W2ldLCItLWF1ZGlvLWZvcm1hdD0iLDE1KT09MCkgeworICAgIGF1ZGlvX2Zvcm1hdD1hdG9pKCZhcmd2W2ldWzE1XSk7CisKICAgfSBlbHNlIGlmKHN0cm5jbXAoYXJndltpXSwiLS11c2UtaGlnaC1jYXJ0IiwxNSk9PTApIHsKICAgICB1c2VfaGlnaF9jYXJ0PXRydWU7CiAKQEAgLTM0NSw2ICszNTAsMTEgQEAKICAgICBwb3N0LmFkZFZhcmlhYmxlKCJOT1JNQUxJWkVfTEVWRUwiLFFTdHJpbmc6Om51bWJlcihub3JtYWxpemVfbGV2ZWwpKTsKICAgfQogCisgIC8vIEFwcGVuZCB0aGUgY3VzdG9tIGZvcm1hdCBmbGFnIGlmIGV4cGxpY2l0bHkgc2V0IGJ5IHRoZSB1c2VyCisgIGlmKGF1ZGlvX2Zvcm1hdCA9PSAwIHx8IGF1ZGlvX2Zvcm1hdCA9PSAzKSB7CisgICAgIHBvc3QuYWRkVmFyaWFibGUoIkZPUk1BVCIsUVN0cmluZzo6bnVtYmVyKGF1ZGlvX2Zvcm1hdCkpOworICB9CisKICAgIGlmKHVzZV9oaWdoX2NhcnQpIHsKICAgICBwb3N0LmFkZFZhcmlhYmxlKCJVU0VfSElHSF9DQVJUIiwiMSIpOwogICB9Ci0tLSBhL3dlYi9yZHhwb3J0L3JkeHBvcnQuY3BwCisrKyBiL3dlYi9yZHhwb3J0L3JkeHBvcnQuY3BwCkBAIC00ODUsMTIgKzQ4NSwyNCBAQAogICAgICAgIHJldHVybjsKICAgIH0KIAotICAvLyBEZWZhdWx0IHRvIHRoZSBIb3N0J3MgZ2xvYmFsbHkgY29uZmlndXJlZCBBdWRpbyBGb3JtYXQKKyAgLy8gRmV0Y2ggdGhlIEhvc3QncyBnbG9iYWxseSBjb25maWd1cmVkIEF1ZGlvIEZvcm1hdAogICAgaW50IHRhcmdldEZvcm1hdCA9IGhvc3RRdWVyeS52YWx1ZSgwKS50b0ludCgpOwogCisgIC8vIElOVEVSQ0VQVDogQ2hlY2sgaWYgdGhlIGNsaWVudCBleHBsaWNpdGx5IHJlcXVlc3RlZCBhIHNwZWNpZmljIGNvZGVjIGZvcm1hdAorICAgaWYoY2dpSGFzUGFyYW0oIkZPUk1BVCIpKSB7CisgICAgIGludCByZXF1ZXN0ZWRGb3JtYXQgPSBjZ2lQYXJhbUFzSW50KCJGT1JNQVQiKTsKKyAgICAgaWYocmVxdWVzdGVkRm9ybWF0ID09IDAgfHwgcmVxdWVzdGVkRm9ybWF0ID09IDMpIHsKKyAgICAgICB0YXJnZXRGb3JtYXQgPSByZXF1ZXN0ZWRGb3JtYXQ7CisgICAgICAgc3lzbG9nKExPR19JTkZPLCAicmR4cG9ydDogSG9zdCBmb3JtYXQgb3ZlcnJpZGRlbi4gVXNpbmcgZXhwbGljaXQgZm9ybWF0ICVkIiwgdGFyZ2V0Rm9ybWF0KTsKKyAgICAgfQorICAgfQorCiAgICAvLyBQcm9jZWVkIHdpdGggdGhlIHN0YW5kYXJkIHRyYW5zY29kaW5nIGFzc2lnbm1lbnQgdXNpbmcgdGFyZ2V0Rm9ybWF0CiAgICBSRFhwb3J0VHJhbnNjb2RlciB0cmFuc2NvZGVyOwogICAgdHJhbnNjb2Rlci5zZXRGb3JtYXQodGFyZ2V0Rm9ybWF0KTsKLS0tIGEvZGFlbW9ucy9yZGNhdGNodC9yZGNhdGNodC5jcHAKKysrIGIvZGFlbW9ucy9yZGNhdGNodC9yZGNhdGNodC5jcHAKQEAgLTYyMC,3ICs2MjAsNyBAQAogdm9pZCBSRENDYXRjaDo6UHJvY2Vzc0Ryb3Bib3hlcygpCiB7CiAgIFFTUUxRdWVyeSBxdWVyeTsKLSAgcXVlcnkuZXhlYygic2VsZWN0IElELCBQQVRILCBHUk9VUF9OQU1FLCBBVVRPVFJJTV9MRVZFTCwgTk9STUFMSVpFX0xFVkVMIEZST00gRFJPUEJPWEVTIFdIRVJFIEhPU1RfTkFNRT0nIiArIEhvc3ROYW1lICsgIiciKTsKKyAgcXVlcnkuZXhlYygic2VsZWN0IElELCBQQVRILCBHUk9VUF9OQU1FLCBBVVRPVFJJTV9MRVZFTCwgTk9STUFMSVpFX0xFVkVMLCBDT0RJTkdfRk9STUFUIEZST00gRFJPUEJPWEVTIFdIRVJFIEhPU1RfTkFNRT0nIiArIEhvc3ROYW1lICsgIiciKTsKICAgCiAgIHdoaWxlKHF1ZXJ5Lm5leHQoKSkgewogICAgIFFTdHJpbmcgcGF0aCA9IHF1ZXJ5LnZhbHVlKDEpLnRvU3RyaW5nKCk7CiAgICAgaW50IGF1dG90cmltID0gcXVlcnkudmFsdWUoMykudG9JbnQoKTsKICAgICBpbnQgbm9ybWFsaXplID0gcXVlcnkudmFsdWUoNCkudG9JbnQoKTsKKyAgICBpbnQgY29kaW5nX2Zvcm1hdCA9IHF1ZXJ5LnZhbHVlKDUpLnRvSW50KCk7CiAKIApAQCAtNjQ1LDYgKzY0NiwxMSBAQAogICAgIGlmKG5vcm1hbGl6ZSAhPSAwKSB7CiAgICAgICBwb3N0LmFkZFZhcmlhYmxlKCJOT1JNQUxJWkVfTEVWRUwiLCBRU3RyaW5nOjpudW1iZXIobm9ybWFsaXplKSk7CiAgICAgfQorICAgIAorICAgIGlmKGNvZGluZ19mb3JtYXQgPT0gMCB8fCBjb2RpbmdfZm9ybWF0ID09IDMpIHsKKyAgICAgIHBvc3QuYWRkVmFyaWFibGUoIkZPUk1BVCIsIFFTdHJpbmc6Om51bWJlcihjb2RpbmdfZm9ybWF0KSk7CisgICAgfQ==" | base64 -d > mp3_ingest.patch
     git apply --ignore-whitespace mp3_ingest.patch
+
     mk-build-deps --install --remove --tool="apt-get -y" debian/control
     dpkg-buildpackage -us -uc -b
     
     cd ..
     sudo dpkg -i *.deb
 
-    # 1. Ensure MySQL is running
-sudo systemctl start mariadb
-
-# 2. Extract password from current rd.conf (or use your build-time variable)
-RD_DB_PASS=$(grep '^Password=' /etc/rd.conf | cut -d'=' -f2)
-
-# 3. Replicate Installer Authentication & Permissions
-echo "Applying database permissions..."
-sudo mariadb -u root <<EOF
+    # 6. Database and Service Initialization
+    sudo systemctl start mariadb
+    RD_DB_PASS=$(grep '^Password=' /etc/rd.conf | cut -d'=' -f2)
+    sudo mariadb -u root <<EOF
 CREATE DATABASE IF NOT EXISTS Rivendell;
 CREATE USER IF NOT EXISTS 'rduser'@'localhost' IDENTIFIED BY '$RD_DB_PASS';
 GRANT ALL PRIVILEGES ON Rivendell.* TO 'rduser'@'localhost';
 FLUSH PRIVILEGES;
 EOF
-
-# 4. Initialize Schema (Using source file from Git clone)
-echo "Initializing database schema..."
-sudo mariadb -u rduser -p"$RD_DB_PASS" Rivendell < /usr/local/src/rivendell-build/rivendell/schema/rivendell.sql
-
-# 5. Register and start services
-sudo systemctl daemon-reload
-sudo systemctl enable rdcatchd rdairplay rdlogmanager || true
-sudo systemctl start rdcatchd rdairplay rdlogmanager || true
+    sudo mariadb -u rduser -p"$RD_DB_PASS" Rivendell < /usr/local/src/rivendell-build/rivendell/schema/rivendell.sql
+    sudo systemctl daemon-reload
+    sudo systemctl enable rdcatchd rdairplay rdlogmanager || true
+    sudo systemctl start rdcatchd rdairplay rdlogmanager || true
 
     mark_step_completed "install_rivendell"
 }
-
 touch_pypad() {
     sudo mkdir -p /var/www/html
     sudo touch /var/www/html/meta.txt
