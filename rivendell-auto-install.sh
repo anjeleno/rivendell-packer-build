@@ -321,14 +321,21 @@ EOF
     echo "Beginning source tree interception & compilation..."
     sudo apt-get -o Dpkg::Use-Pty=0 -o Dpkg::Options::="--force-confdef" -o Dpkg::Options::="--force-confold" install -y git devscripts equivs dpkg-dev
 
-    sudo mkdir -p /usr/local/src
-    cd /usr/local/src
-    if [ ! -d "rivendell" ]; then
-        sudo git clone https://github.com/ElvishArtisan/rivendell.git
-    fi
-    cd rivendell
-    sudo git fetch --all
-    sudo git checkout tags/v4.4.1 -b v4.4.1-patched || true
+    # FIX: Force enable deb-src for Paravel's repo so we can download the packaging files
+    for f in /etc/apt/sources.list.d/*.list; do
+        if grep -q "^deb " "$f" && ! grep -q "^deb-src " "$f"; then
+            sudo sed -i -e '/^deb /p' -e 's/^deb /deb-src /' "$f"
+        fi
+    done
+    sudo apt-get update
+
+    # FIX: Pull the source from APT (which includes the 'debian/' folder) instead of GitHub
+    sudo mkdir -p /usr/local/src/rivendell-build
+    sudo chmod 777 /usr/local/src/rivendell-build
+    cd /usr/local/src/rivendell-build
+    
+    sudo apt-get source rivendell
+    cd rivendell-*/
 
     # Inject the unified MP3 patch
     sudo tee mp3_ingest.patch > /dev/null << 'EOF'
