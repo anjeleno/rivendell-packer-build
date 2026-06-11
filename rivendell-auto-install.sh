@@ -276,6 +276,12 @@ install_rivendell() {
         echo "Executing Production AMD64 Path (Using Paravel Base Script Installer)..."
         wget -q https://software.paravelsystems.com/ubuntu/dists/noble/main/install_rivendell.sh
         chmod +x install_rivendell.sh
+        # 1. Force APT to ignore "Recommended" bloatware globally for this build
+        echo 'APT::Install-Recommends "false";' | sudo tee /etc/apt/apt.conf.d/99no-recommends
+        
+        # 2. Rewrite Paravel's script to install the minimal MATE core instead of the bloated desktop
+        sed -i 's/ubuntu-mate-desktop/ubuntu-mate-core/g' install_rivendell.sh
+        sed -i 's/libreoffice//g' install_rivendell.sh
         # Run non-interactively passing default option
         # Use an explicit heredoc to guarantee non-interactive stdin mapping to prevent pathconf errors
         sudo DEBIAN_FRONTEND=noninteractive ./install_rivendell.sh <<INST
