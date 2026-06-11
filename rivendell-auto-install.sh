@@ -540,7 +540,9 @@ if ! step_completed "install_mate"; then install_mate; fi
 if ! step_completed "install_xrdp"; then install_xrdp; fi
 if ! step_completed "configure_xrdp"; then configure_xrdp; fi
 if ! step_completed "set_mate_default"; then set_mate_default; fi
-if ! step_completed "install_rivendell"; then install_rivendell; fi
+
+# --- CHANGE HERE: Bypass the Paravel installer function call ---
+# if ! step_completed "install_rivendell"; then install_rivendell; fi
 
 if [[ "$INSTALL_TYPE" == "3" ]]; then
     if ! step_completed "disable_pulseaudio"; then disable_pulseaudio; fi
