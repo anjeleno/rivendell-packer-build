@@ -4,7 +4,7 @@
     DESTINATION varchar(255) default NULL,
     CUT_CREATION tinyint(4) NOT NULL default '0',
     CREATE_GROUP varchar(64) default NULL,
-+   CODING_FORMAT int(11) NOT NULL default '-1',
++   CODING_FORMAT int(11) NOT NULL default -1,
     AUTOTRIM_LEVEL int(11) NOT NULL default '0',
     NORMALIZE_LEVEL int(11) NOT NULL default '0',
     PRIMARY KEY  (ID)
@@ -81,12 +81,12 @@
     
     while(query.next()) {
       QString path = query.value(1).toString();
-@@ -628,6 +628,7 @@
+@@ -628,3 +628,4 @@
       int autotrim = query.value(3).toInt();
       int normalize = query.value(4).toInt();
 +     int coding_format = query.value(5).toInt();
  
-@@ -645,6 +646,11 @@
+@@ -645,3 +646,7 @@
       if(normalize != 0) {
         post.addVariable("NORMALIZE_LEVEL", QString::number(normalize));
       }

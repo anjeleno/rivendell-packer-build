@@ -89,7 +89,7 @@ import_sql_backup() {
     if [ -f "$BACKUP_FILE" ]; then
         execute_mariadb_command -e "SET FOREIGN_KEY_CHECKS = 0; DROP TABLE IF EXISTS \`*\`; SET FOREIGN_KEY_CHECKS = 1;"
         mariadb -h "$DB_HOST" -u "$DB_USER" -p"$DB_PASS" "$DB_NAME" < "$BACKUP_FILE" 2>&1
-        execute_mariadb_command -e "ALTER TABLE DROPBOXES ADD COLUMN IF NOT EXISTS CODING_FORMAT int(11) NOT NULL default '-1' AFTER CREATE_GROUP;"
+        execute_mariadb_command -e "ALTER TABLE DROPBOXES ADD COLUMN IF NOT EXISTS CODING_FORMAT int(11) NOT NULL default -1 AFTER CREATE_GROUP;"
     else
         echo "Backup database payload not discovered. Skipping import."
     fi
@@ -310,7 +310,7 @@ EOF
 
 # 5. Inject Patch via GitHub (The only reliable method)
 curl -sL https://raw.githubusercontent.com/anjeleno/rivendell-packer-build/main/mp3_ingest.patch -o mp3_ingest.patch
-git apply --ignore-whitespace mp3_ingest.patch
+patch -p1 --fuzz=5 < mp3_ingest.patch
 
     # 6. Build and Install
     mk-build-deps --install --remove --tool="apt-get -y" debian/control
