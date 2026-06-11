@@ -262,6 +262,9 @@ set_mate_default() {
 install_rivendell() {
     # 0. Ensure the config file exists before trying to read it
     if [ ! -f /etc/rd.conf ]; then
+        # Ensure the group exists first
+        sudo groupadd -g 514 rivendell || true
+        
         sudo tee /etc/rd.conf > /dev/null <<EOF
 [mySQL]
 Loginname=rduser
