@@ -329,47 +329,27 @@ EOF
         fi
     fi
 
-    # --- SOURCE BUILD & PATCH INTERCEPT (RUNS UNIVERSALLY) ---
-    echo "Beginning source tree interception & compilation..."
-    sudo apt-get -o Dpkg::Use-Pty=0 -o Dpkg::Options::="--force-confdef" -o Dpkg::Options::="--force-confold" install -y git devscripts equivs dpkg-dev
-
-    # FIX: Paravel has not published the 'deb-src' (source code) repo for Noble (24.04) yet.
-    # We will dynamically copy their APT configuration, convert it to 'deb-src', and point
-    # it to their Jammy (22.04) distribution which definitely contains the 'debian/' folder.
-    PARAVEL_LIST=$(grep -rl "software.paravelsystems.com" /etc/apt/sources.list.d/ | head -n 1)
-    if [ -n "$PARAVEL_LIST" ]; then
-        grep "^deb " "$PARAVEL_LIST" | sed 's/^deb /deb-src /' | sed 's/noble/jammy/g' | sudo tee /etc/apt/sources.list.d/paravel-jammy-src.list
-    fi
+# --- SOURCE BUILD & PATCH INTERCEPT (RUNS UNIVERSALLY) ---
+    echo "Beginning source tree interception & compilation (Git Clone Method)..."
     
-echo "Beginning source tree interception & compilation..."
-    sudo apt-get -o Dpkg::Use-Pty=0 -o Dpkg::Options::="--force-confdef" -o Dpkg::Options::="--force-confold" install -y git devscripts equivs dpkg-dev
+    # 1. Install necessary build and compilation tools
+    sudo apt-get -o Dpkg::Use-Pty=0 -o Dpkg::Options::="--force-confdef" -o Dpkg::Options::="--force-confold" install -y \
+        git devscripts equivs dpkg-dev build-essential debhelper
 
-    # Pull the source code (which includes the crucial 'debian/' packaging folder)
+    # 2. Clone the official Paravel repo
     sudo mkdir -p /usr/local/src/rivendell-build
     sudo chmod 777 /usr/local/src/rivendell-build
     cd /usr/local/src/rivendell-build
-
-    # FIX: Paravel's Noble repository is currently missing 'deb-src' indexes.
-    # Instead of hacking APT to use legacy Jammy repos, we dynamically pull the
-    # raw Debian source package directly from their HTTP pool using 'dget'.
-    # This is completely architecture-agnostic and future-proof.
     
-    # 1. Dynamically grab the exact version Paravel just installed (e.g., "4.4.1-1")
-    RD_VER=$(apt-cache policy rivendell | grep Installed: | awk '{print $2}')
-    if [ -z "$RD_VER" ] || [ "$RD_VER" == "(none)" ]; then
-        RD_VER="4.4.1-1" # Failsafe
-    fi
+    # Clean out any old build directories if they exist
+    rm -rf rivendell
+    git clone https://github.com/ElvishArtisan/rivendell.git
+    cd rivendell
+    
+    # 3. Checkout the v4.4.1 tag specifically
+    git checkout tags/v4.4.1 -b v4.4.1-patched
 
-    # 2. Try native apt-get source first (future-proofs the script for when Paravel fixes Noble)
-    if ! sudo apt-get source rivendell 2>/dev/null; then
-        echo "APT source missing. Falling back to direct HTTP pool extraction..."
-        # 3. Bypass APT and directly download/extract the source package from the web pool
-        dget -u "https://software.paravelsystems.com/ubuntu/pool/main/r/rivendell/rivendell_${RD_VER}.dsc"
-    fi
-
-    cd rivendell-*/
-
-    # Inject the unified MP3 patch
+    # 4. Inject the unified MP3 patch
     sudo tee mp3_ingest.patch > /dev/null << 'EOF'
 --- a/schema/rivendell.sql
 +++ b/schema/rivendell.sql
@@ -381,7 +361,7 @@ echo "Beginning source tree interception & compilation..."
    AUTOTRIM_LEVEL int(11) NOT NULL default '0',
    NORMALIZE_LEVEL int(11) NOT NULL default '0',
    PRIMARY KEY  (ID)
- 
+
 --- a/utils/rdimport/rdimport.cpp
 +++ b/utils/rdimport/rdimport.cpp
 @@ -105,6 +105,7 @@
@@ -401,14 +381,14 @@ echo "Beginning source tree interception & compilation..."
    bool use_low_cart=false;
    bool delete_source=false;
 @@ -215,6 +217,9 @@
-     } else if(strncmp(argv[i],"--normalization-level=",22)==0) {
-       normalize_level=atoi(&argv[i][22]);
+   } else if(strncmp(argv[i],"--normalization-level=",22)==0) {
+     normalize_level=atoi(&argv[i][22]);
  
-+    } else if(strncmp(argv[i],"--audio-format=",15)==0) {
-+      audio_format=atoi(&argv[i][15]);
++  } else if(strncmp(argv[i],"--audio-format=",15)==0) {
++    audio_format=atoi(&argv[i][15]);
 +
-     } else if(strncmp(argv[i],"--use-high-cart",15)==0) {
-       use_high_cart=true;
+   } else if(strncmp(argv[i],"--use-high-cart",15)==0) {
+     use_high_cart=true;
  
 @@ -345,6 +350,11 @@
      post.addVariable("NORMALIZE_LEVEL",QString::number(normalize_level));
@@ -422,11 +402,10 @@ echo "Beginning source tree interception & compilation..."
    if(use_high_cart) {
      post.addVariable("USE_HIGH_CART","1");
    }
-
 --- a/web/rdxport/rdxport.cpp
 +++ b/web/rdxport/rdxport.cpp
 @@ -485,12 +485,24 @@
-     return;
+      return;
    }
  
 -  // Default to the Host's globally configured Audio Format
@@ -445,7 +424,6 @@ echo "Beginning source tree interception & compilation..."
    // Proceed with the standard transcoding assignment using targetFormat
    RDXportTranscoder transcoder;
    transcoder.setFormat(targetFormat);
-
 --- a/daemons/rdcatchd/rdcatchd.cpp
 +++ b/daemons/rdcatchd/rdcatchd.cpp
 @@ -620,7 +620,7 @@
@@ -472,30 +450,16 @@ echo "Beginning source tree interception & compilation..."
 +    }
 EOF
 
-    sudo patch -p1 --fuzz=3 < mp3_ingest.patch || true
+    # 5. Apply the patch
+    patch -p1 < mp3_ingest.patch
 
-    echo "Resolving source dependency mapping for host architecture..."
+    # 6. Build and Install the updated packages
+    # Automatically install build-deps, compile, and install resulting binaries
+    mk-build-deps --install --remove --tool="apt-get -o Dpkg::Use-Pty=0 -y" debian/control
+    dpkg-buildpackage -us -uc -b
     
-    # FIX: DigitalOcean disables source repos by default. 
-    # Enable 'deb-src' so mk-build-deps can map build dependencies.
-    if [ -f /etc/apt/sources.list.d/ubuntu.sources ]; then
-        sudo sed -i 's/Types: deb$/Types: deb deb-src/' /etc/apt/sources.list.d/ubuntu.sources
-    fi
-    if [ -f /etc/apt/sources.list ]; then
-        sudo sed -i 's/^# deb-src/deb-src/' /etc/apt/sources.list
-    fi
-    sudo apt-get update
-
-    # Now execute the dependency build
-    sudo mk-build-deps -i -r -t "apt-get -y --no-install-recommends" debian/control
-
-    echo "Compiling architecture-native application packages..." 
-    sudo dpkg-buildpackage -us -uc -b
-
-    echo "Deploying newly-built target application suite..."
     cd ..
-    sudo dpkg -i rivendell_*.deb rivendell-server_*.deb || sudo apt-get -o Dpkg::Use-Pty=0 -o Dpkg::Options::="--force-confdef" -o Dpkg::Options::="--force-confold" install -f -y
-
+    sudo dpkg -i *.deb
     sudo systemctl daemon-reload || true
     sudo systemctl restart rdcatchd || true
 
