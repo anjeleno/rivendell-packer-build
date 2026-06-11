@@ -289,21 +289,21 @@ EOF
     cd /tmp || exit 1
 
     # --- ARCHITECTURE SWAP ROUTINE ---
-    if [[ "$SYS_ARCH" == "x86_64" ]]; then
-        echo "Executing Production AMD64 Path (Using Paravel Base Script Installer)..."
-        wget -q https://software.paravelsystems.com/ubuntu/dists/noble/main/install_rivendell.sh
-        chmod +x install_rivendell.sh
-        # 1. Force APT to ignore "Recommended" bloatware globally for this build
-        echo 'APT::Install-Recommends "false";' | sudo tee /etc/apt/apt.conf.d/99no-recommends
-        
-        # 2. Rewrite Paravel's script to install the minimal MATE core instead of the bloated desktop
-        sed -i 's/ubuntu-mate-desktop/ubuntu-mate-core/g' install_rivendell.sh
-        sed -i 's/libreoffice//g' install_rivendell.sh
-        # Run non-interactively passing default option
-        # Use an explicit heredoc to guarantee non-interactive stdin mapping to prevent pathconf errors
-        sudo DEBIAN_FRONTEND=noninteractive ./install_rivendell.sh <<INST
-$INSTALL_TYPE
-INST
+    # We now use the Git Clone method for ALL architectures to maintain consistency
+    # and guarantee that your custom patches are applied every time.
+    
+    echo "Executing Rivendell Core Build Pipeline..."
+    
+    # Keep the manual system dependencies for both architectures
+    sudo apt-get update
+    sudo apt-get install -y mariadb-server mariadb-client apache2 libapache2-mod-cext \
+                         libqt5sql5-mysql cutmp3 vorbis-tools flac lame normalize-audio \
+                         libsoundtouch6 shared-mime-info sudo
+
+    # ... (Keep your groupadd and limits.d logic here) ...
+
+    # Skip the 'wget' and './install_rivendell.sh' entirely.
+    # Proceed directly to the # --- SOURCE BUILD & PATCH INTERCEPT --- section.
 
         # FIX: The Paravel script pulls down heavy desktop packages. 
         # Purge them immediately after the installer finishes to shrink the Golden Image.
