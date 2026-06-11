@@ -329,28 +329,29 @@ EOF
         fi
     fi
 
-# --- SOURCE BUILD & PATCH INTERCEPT (RUNS UNIVERSALLY) ---
+# --- SOURCE BUILD & PATCH INTERCEPT ---
     echo "Beginning source tree interception & compilation (Git Clone Method)..."
     
-    # 1. Install necessary build and compilation tools
-    sudo apt-get -o Dpkg::Use-Pty=0 -o Dpkg::Options::="--force-confdef" -o Dpkg::Options::="--force-confold" install -y \
-        git devscripts equivs dpkg-dev build-essential debhelper
+    # 1. Install necessary build-essential tools
+    sudo apt-get -y install git devscripts equivs dpkg-dev build-essential debhelper patch
 
-    # 2. Clone the official Paravel repo
-    sudo mkdir -p /usr/local/src/rivendell-build
-    sudo chmod 777 /usr/local/src/rivendell-build
-    cd /usr/local/src/rivendell-build
+    # 2. Set up working directory
+    BUILD_DIR="/usr/local/src/rivendell-build"
+    sudo mkdir -p $BUILD_DIR
+    sudo chmod 777 $BUILD_DIR
+    cd $BUILD_DIR
     
-    # Clean out any old build directories if they exist
+    # 3. Clone and enter the repository
     rm -rf rivendell
     git clone https://github.com/ElvishArtisan/rivendell.git
     cd rivendell
     
-    # 3. Checkout the v4.4.1 tag specifically
+    # 4. Checkout the tag
     git checkout tags/v4.4.1 -b v4.4.1-patched
 
-    # 4. Inject the unified MP3 patch
-    sudo tee mp3_ingest.patch > /dev/null << 'EOF'
+    # 5. Inject the unified MP3 patch
+    # We are now in the root of the repo, so paths match the patch exactly.
+    sudo tee mp3_ingest.patch > /dev/null << 'END_OF_PATCH'
 --- a/schema/rivendell.sql
 +++ b/schema/rivendell.sql
 @@ -450,6 +450,7 @@
@@ -448,22 +449,16 @@ EOF
 +    if(coding_format == 0 || coding_format == 3) {
 +      post.addVariable("FORMAT", QString::number(coding_format));
 +    }
-EOF
+END_OF_PATCH
 
-    # 5. Apply the patch
+    # 6. Apply patch, build, and install
     patch -p1 < mp3_ingest.patch
-
-    # 6. Build and Install the updated packages
-    # Automatically install build-deps, compile, and install resulting binaries
-    mk-build-deps --install --remove --tool="apt-get -o Dpkg::Use-Pty=0 -y" debian/control
+    mk-build-deps --install --remove --tool="apt-get -y" debian/control
     dpkg-buildpackage -us -uc -b
     
     cd ..
     sudo dpkg -i *.deb
-    sudo systemctl daemon-reload || true
-    sudo systemctl restart rdcatchd || true
-
-    cd /home/rd/Rivendell-Cloud
+    
     mark_step_completed "install_rivendell"
 }
 
