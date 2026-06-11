@@ -260,10 +260,24 @@ set_mate_default() {
 }
 
 install_rivendell() {
+    # 0. Ensure the config file exists before trying to read it
+    if [ ! -f /etc/rd.conf ]; then
+        sudo tee /etc/rd.conf > /dev/null <<EOF
+[mySQL]
+Loginname=rduser
+Password=rduser
+Database=Rivendell
+Hostname=localhost
+EOF
+        sudo chown rd:rivendell /etc/rd.conf
+        sudo chmod 644 /etc/rd.conf
+    fi
+
     UBUNTU_VERSION=$(lsb_release -rs)
     SYS_ARCH=$(uname -m)
 
     echo "Executing Rivendell Core Target Pipeline..."
+
     echo "Detected Architecture: $SYS_ARCH | OS Version: $UBUNTU_VERSION"
 
     # FIX: Shift execution context to a globally readable directory to bypass 
@@ -458,7 +472,31 @@ END_OF_PATCH
     
     cd ..
     sudo dpkg -i *.deb
-    
+
+    # 1. Ensure MySQL is running
+sudo systemctl start mariadb
+
+# 2. Extract password from current rd.conf (or use your build-time variable)
+RD_DB_PASS=$(grep '^Password=' /etc/rd.conf | cut -d'=' -f2)
+
+# 3. Replicate Installer Authentication & Permissions
+echo "Applying database permissions..."
+sudo mariadb -u root <<EOF
+CREATE DATABASE IF NOT EXISTS Rivendell;
+CREATE USER IF NOT EXISTS 'rduser'@'localhost' IDENTIFIED BY '$RD_DB_PASS';
+GRANT ALL PRIVILEGES ON Rivendell.* TO 'rduser'@'localhost';
+FLUSH PRIVILEGES;
+EOF
+
+# 4. Initialize Schema (Using source file from Git clone)
+echo "Initializing database schema..."
+sudo mariadb -u rduser -p"$RD_DB_PASS" Rivendell < /usr/local/src/rivendell-build/rivendell/schema/rivendell.sql
+
+# 5. Register and start services
+sudo systemctl daemon-reload
+sudo systemctl enable rdcatchd rdairplay rdlogmanager || true
+sudo systemctl start rdcatchd rdairplay rdlogmanager || true
+
     mark_step_completed "install_rivendell"
 }
 
@@ -542,7 +580,7 @@ if ! step_completed "configure_xrdp"; then configure_xrdp; fi
 if ! step_completed "set_mate_default"; then set_mate_default; fi
 
 # --- CHANGE HERE: Bypass the Paravel installer function call ---
-# if ! step_completed "install_rivendell"; then install_rivendell; fi
+if ! step_completed "install_rivendell"; then install_rivendell; fi
 
 if [[ "$INSTALL_TYPE" == "3" ]]; then
     if ! step_completed "disable_pulseaudio"; then disable_pulseaudio; fi
