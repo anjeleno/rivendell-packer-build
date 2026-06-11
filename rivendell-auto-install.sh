@@ -321,15 +321,17 @@ EOF
     echo "Beginning source tree interception & compilation..."
     sudo apt-get -o Dpkg::Use-Pty=0 -o Dpkg::Options::="--force-confdef" -o Dpkg::Options::="--force-confold" install -y git devscripts equivs dpkg-dev
 
-    # FIX: Force enable deb-src for Paravel's repo so we can download the packaging files
-    for f in /etc/apt/sources.list.d/*.list; do
-        if grep -q "^deb " "$f" && ! grep -q "^deb-src " "$f"; then
-            sudo sed -i -e '/^deb /p' -e 's/^deb /deb-src /' "$f"
-        fi
-    done
+    # FIX: Paravel has not published the 'deb-src' (source code) repo for Noble (24.04) yet.
+    # We will dynamically copy their APT configuration, convert it to 'deb-src', and point
+    # it to their Jammy (22.04) distribution which definitely contains the 'debian/' folder.
+    PARAVEL_LIST=$(grep -rl "software.paravelsystems.com" /etc/apt/sources.list.d/ | head -n 1)
+    if [ -n "$PARAVEL_LIST" ]; then
+        grep "^deb " "$PARAVEL_LIST" | sed 's/^deb /deb-src /' | sed 's/noble/jammy/g' | sudo tee /etc/apt/sources.list.d/paravel-jammy-src.list
+    fi
+    
     sudo apt-get update
 
-    # FIX: Pull the source from APT (which includes the 'debian/' folder) instead of GitHub
+    # Pull the source from APT (which includes the 'debian/' folder) instead of GitHub
     sudo mkdir -p /usr/local/src/rivendell-build
     sudo chmod 777 /usr/local/src/rivendell-build
     cd /usr/local/src/rivendell-build
