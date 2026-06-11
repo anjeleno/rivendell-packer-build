@@ -341,14 +341,32 @@ EOF
         grep "^deb " "$PARAVEL_LIST" | sed 's/^deb /deb-src /' | sed 's/noble/jammy/g' | sudo tee /etc/apt/sources.list.d/paravel-jammy-src.list
     fi
     
-    sudo apt-get update
+echo "Beginning source tree interception & compilation..."
+    sudo apt-get -o Dpkg::Use-Pty=0 -o Dpkg::Options::="--force-confdef" -o Dpkg::Options::="--force-confold" install -y git devscripts equivs dpkg-dev
 
-    # Pull the source from APT (which includes the 'debian/' folder) instead of GitHub
+    # Pull the source code (which includes the crucial 'debian/' packaging folder)
     sudo mkdir -p /usr/local/src/rivendell-build
     sudo chmod 777 /usr/local/src/rivendell-build
     cd /usr/local/src/rivendell-build
+
+    # FIX: Paravel's Noble repository is currently missing 'deb-src' indexes.
+    # Instead of hacking APT to use legacy Jammy repos, we dynamically pull the
+    # raw Debian source package directly from their HTTP pool using 'dget'.
+    # This is completely architecture-agnostic and future-proof.
     
-    sudo apt-get source rivendell
+    # 1. Dynamically grab the exact version Paravel just installed (e.g., "4.4.1-1")
+    RD_VER=$(apt-cache policy rivendell | grep Installed: | awk '{print $2}')
+    if [ -z "$RD_VER" ] || [ "$RD_VER" == "(none)" ]; then
+        RD_VER="4.4.1-1" # Failsafe
+    fi
+
+    # 2. Try native apt-get source first (future-proofs the script for when Paravel fixes Noble)
+    if ! sudo apt-get source rivendell 2>/dev/null; then
+        echo "APT source missing. Falling back to direct HTTP pool extraction..."
+        # 3. Bypass APT and directly download/extract the source package from the web pool
+        dget -u "https://software.paravelsystems.com/ubuntu/pool/main/r/rivendell/rivendell_${RD_VER}.dsc"
+    fi
+
     cd rivendell-*/
 
     # Inject the unified MP3 patch
