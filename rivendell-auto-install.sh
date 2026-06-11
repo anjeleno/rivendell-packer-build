@@ -288,6 +288,12 @@ install_rivendell() {
 $INSTALL_TYPE
 INST
 
+        # FIX: The Paravel script pulls down heavy desktop packages. 
+        # Purge them immediately after the installer finishes to shrink the Golden Image.
+        echo "Purging unnecessary desktop bloatware..."
+        sudo apt-get purge -y libreoffice* evolution* transmission* rhythmbox* celluloid* hexchat*
+        sudo apt-get autoremove --purge -y
+        sudo apt-get clean
 
     elif [[ "$SYS_ARCH" == "aarch64" || "$SYS_ARCH" == "arm64" ]]; then
         echo "Executing Custom ARM64 Engineering Path (Bypassing Architecture Block)..."
