@@ -291,7 +291,7 @@ INST
         # FIX: The Paravel script pulls down heavy desktop packages. 
         # Purge them immediately after the installer finishes to shrink the Golden Image.
         echo "Purging unnecessary desktop bloatware..."
-        sudo apt-get purge -y libreoffice* evolution* transmission* rhythmbox* celluloid* hexchat*
+        sudo apt-get purge -y libreoffice* evolution* transmission* rhythmbox* celluloid* hexchat* laptop-detect
         sudo apt-get autoremove --purge -y
         sudo apt-get clean
 
