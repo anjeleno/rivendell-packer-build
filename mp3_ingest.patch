@@ -1,0 +1,96 @@
+--- a/schema/rivendell.sql
++++ b/schema/rivendell.sql
+@@ -450,6 +450,7 @@
+    DESTINATION varchar(255) default NULL,
+    CUT_CREATION tinyint(4) NOT NULL default '0',
+    CREATE_GROUP varchar(64) default NULL,
++   CODING_FORMAT int(11) NOT NULL default '-1',
+    AUTOTRIM_LEVEL int(11) NOT NULL default '0',
+    NORMALIZE_LEVEL int(11) NOT NULL default '0',
+    PRIMARY KEY  (ID)
+--- a/utils/rdimport/rdimport.cpp
++++ b/utils/rdimport/rdimport.cpp
+@@ -105,6 +105,7 @@
+    printf("  --metadata-pattern=<pattern>\n");
+    printf("  --autotrim-level=<level>\n");
+    printf("  --normalization-level=<level>\n");
++   printf("  --audio-format=<0|3> (0=PCM16, 3=MPEG Layer III)\n");
+    printf("  --use-high-cart\n");
+    printf("  --use-low-cart\n");
+ }
+@@ -140,6 +141,7 @@
+    int metadata_offset=0;
+    int autotrim_level=0;
+    int normalize_level=0;
++   int audio_format=-1;
+    bool use_high_cart=false;
+    bool use_low_cart=false;
+    bool delete_source=false;
+@@ -215,6 +217,9 @@
+    } else if(strncmp(argv[i],"--normalization-level=",22)==0) {
+      normalize_level=atoi(&argv[i][22]);
+ 
++   } else if(strncmp(argv[i],"--audio-format=",15)==0) {
++     audio_format=atoi(&argv[i][15]);
++
+    } else if(strncmp(argv[i],"--use-high-cart",15)==0) {
+      use_high_cart=true;
+ 
+@@ -345,6 +350,11 @@
+      post.addVariable("NORMALIZE_LEVEL",QString::number(normalize_level));
+    }
+ 
++   // Append the custom format flag if explicitly set by the user
++   if(audio_format == 0 || audio_format == 3) {
++     post.addVariable("FORMAT",QString::number(audio_format));
++   }
++
+    if(use_high_cart) {
+      post.addVariable("USE_HIGH_CART","1");
+    }
+--- a/web/rdxport/rdxport.cpp
++++ b/web/rdxport/rdxport.cpp
+@@ -485,12 +485,24 @@
+       return;
+    }
+ 
+-   // Default to the Host's globally configured Audio Format
++   // Fetch the Host's globally configured Audio Format
+    int targetFormat = hostQuery.value(0).toInt();
+ 
++   // INTERCEPT: Check if the client explicitly requested a specific codec format
++   if(cgiHasParam("FORMAT")) {
++     int requestedFormat = cgiParamAsInt("FORMAT");
++     if(requestedFormat == 0 || requestedFormat == 3) {
++       targetFormat = requestedFormat;
++       syslog(LOG_INFO, "rdxport: Host format overridden. Using explicit format %d", targetFormat);
++     }
++   }
++
+    // Proceed with the standard transcoding assignment using targetFormat
+    RDXportTranscoder transcoder;
+    transcoder.setFormat(targetFormat);
+--- a/daemons/rdcatchd/rdcatchd.cpp
++++ b/daemons/rdcatchd/rdcatchd.cpp
+@@ -620,7 +620,7 @@
+ void RDCatch::ProcessDropboxes()
+ {
+    QSqlQuery query;
+-   query.exec("SELECT ID, PATH, GROUP_NAME, AUTOTRIM_LEVEL, NORMALIZE_LEVEL FROM DROPBOXES WHERE HOST_NAME='" + HostName + "'");
++   query.exec("SELECT ID, PATH, GROUP_NAME, AUTOTRIM_LEVEL, NORMALIZE_LEVEL, CODING_FORMAT FROM DROPBOXES WHERE HOST_NAME='" + HostName + "'");
+    
+    while(query.next()) {
+      QString path = query.value(1).toString();
+@@ -628,6 +628,7 @@
+      int autotrim = query.value(3).toInt();
+      int normalize = query.value(4).toInt();
++     int coding_format = query.value(5).toInt();
+ 
+@@ -645,6 +646,11 @@
+      if(normalize != 0) {
+        post.addVariable("NORMALIZE_LEVEL", QString::number(normalize));
+      }
++     
++     if(coding_format == 0 || coding_format == 3) {
++       post.addVariable("FORMAT", QString::number(coding_format));
++     }

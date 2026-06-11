@@ -1,4 +1,12 @@
 # Changelog
+## v0.25.0 - 2026-06-10
+### Changes:
+- **Dual-Architecture Golden Image Build**: Automatically detects architecture (AMD64 vs ARM64).
+- **ARM64 Scaffolding Support**: Bypasses Paravel repository limitations on ARM64 by manually scaffolding Apache and MariaDB environments prior to local source compilation.
+- **Robust Out-of-the-Box Ingest**: Exposes client-side `--audio-format` flag for `rdimport` and custom dropdown options for Rivendell Dropboxes.
+- **Reliable Patch Delivery**: Downloads and applies the exact `mp3_ingest.patch` directly from GitHub to resolve encoding, newline, and base64 parsing issues.
+- **Unattended execution support**: Upgraded script to execute completely non-interactively for server builds and Packer automation.
+
 ## v0.23.4 - 2025-04-01
 ### Changes:
 - **The script now detects Ubuntu 24.04 and invokes the appropriate Rivendell installer for Noble.

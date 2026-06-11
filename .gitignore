@@ -5,3 +5,4 @@
 /home/rd/imports/APPS/.sql/*.sql
 !home/rd/imports/APPS/.sql/daily_db_backup.sh  # Keep the backup script
 discussion.md
+rivendell-auto-install-BAK
