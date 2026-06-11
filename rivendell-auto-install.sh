@@ -436,9 +436,21 @@ EOF
     sudo patch -p1 --fuzz=3 < mp3_ingest.patch || true
 
     echo "Resolving source dependency mapping for host architecture..."
-    sudo mk-build-deps -i -r -t "apt-get -y --no-install-recommends" debian/control
     
-    echo "Compiling architecture-native application packages..."
+    # FIX: DigitalOcean disables source repos by default. 
+    # Enable 'deb-src' so mk-build-deps can map build dependencies.
+    if [ -f /etc/apt/sources.list.d/ubuntu.sources ]; then
+        sudo sed -i 's/Types: deb$/Types: deb deb-src/' /etc/apt/sources.list.d/ubuntu.sources
+    fi
+    if [ -f /etc/apt/sources.list ]; then
+        sudo sed -i 's/^# deb-src/deb-src/' /etc/apt/sources.list
+    fi
+    sudo apt-get update
+
+    # Now execute the dependency build
+    sudo mk-build-deps -i -r -t "apt-get -y --no-install-recommends" debian/control
+
+    echo "Compiling architecture-native application packages..." 
     sudo dpkg-buildpackage -us -uc -b
 
     echo "Deploying newly-built target application suite..."
