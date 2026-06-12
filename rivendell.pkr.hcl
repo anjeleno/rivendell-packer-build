@@ -18,7 +18,7 @@ source "digitalocean" "rivendell_golden" {
   region        = "nyc3"             
   size          = "s-2vcpu-4gb"      # Compilation requires a bit of horsepower
   ssh_username  = "root"
-  snapshot_name = "rivendell-4.4.1-custom-mp3-{{timestamp}}"
+  snapshot_name = "rivendell-4.4.1-vanilla-{{timestamp}}"
 }
 
 build {

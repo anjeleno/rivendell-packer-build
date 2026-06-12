@@ -1,11 +1,14 @@
 #!/bin/bash
 # Rivendell Universal Auto-Install Script (Unattended)
-# Version: 0.25.0 (Dual-Architecture Golden Image Build)
-# Date: 2026-06-10
+# Version: 0.26.0 (Vanilla Golden Image Build)
+# Date: 2026-06-12
 # Description: Automates Rivendell deployment cleanly on Ubuntu 24.04/26.04.
 #              Automatically detects architecture (AMD64 vs ARM64).
-#              Bypasses Paravel repository limitations on ARM64 by manually 
+#              Bypasses Paravel repository limitations on ARM64 by manually
 #              scaffolding the system environment prior to local source compilation.
+#              Builds vanilla, unpatched Rivendell v4.4.1 from source. Custom
+#              patches (e.g. mp3_ingest.patch) are layered on top of this golden
+#              image as a separate stage, not injected during this build.
 
 set -e
 
@@ -297,28 +300,24 @@ EOF
 @rivendell       soft    memlock         unlimited
 EOF
 
-    # 4. Build and Patch
+    # 4. Build (Vanilla - no patches applied at this stage)
     BUILD_DIR="/usr/local/src/rivendell-build"
     sudo mkdir -p $BUILD_DIR
     sudo chmod 777 $BUILD_DIR
     cd $BUILD_DIR
-    
+
     rm -rf rivendell
     git clone https://github.com/ElvishArtisan/rivendell.git
     cd rivendell
-    git checkout tags/v4.4.1 -b v4.4.1-patched
+    git checkout tags/v4.4.1 -b v4.4.1-vanilla
 
-# 5. Inject Patch via GitHub (The only reliable method)
-curl -sL https://raw.githubusercontent.com/anjeleno/rivendell-packer-build/main/mp3_ingest.patch -o mp3_ingest.patch
-patch -p1 --fuzz=5 < mp3_ingest.patch
-
-    # 6. Build and Install
+    # 5. Build and Install
     mk-build-deps --install --remove --tool="apt-get -y" debian/control
     dpkg-buildpackage -us -uc -b
     cd ..
     sudo dpkg -i *.deb
 
-    # 7. Database Initialization
+    # 6. Database Initialization
     sudo systemctl start mariadb
     RD_DB_PASS=$(grep '^Password=' /etc/rd.conf | cut -d'=' -f2)
     sudo mariadb -u root <<EOF
@@ -329,7 +328,7 @@ FLUSH PRIVILEGES;
 EOF
     sudo mariadb -u rduser -p"$RD_DB_PASS" Rivendell < /usr/local/src/rivendell-build/rivendell/schema/rivendell.sql
     
-    # 8. Service Registration
+    # 7. Service Registration
     sudo systemctl daemon-reload
     sudo systemctl enable rdcatchd rdairplay rdlogmanager || true
     sudo systemctl start rdcatchd rdairplay rdlogmanager || true

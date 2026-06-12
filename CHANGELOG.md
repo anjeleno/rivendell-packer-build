@@ -1,4 +1,10 @@
 # Changelog
+## v0.26.0 - 2026-06-12
+### Changes:
+- **Vanilla Golden Image Build**: Removed the in-build `mp3_ingest.patch` injection from `install_rivendell`. The build now compiles and installs stock, unpatched Rivendell v4.4.1 from source.
+- **Patch Layering Strategy**: Custom patches (e.g. `mp3_ingest.patch`) will be applied as a separate stage on top of this golden image, rather than baked into the source build. This decouples base-image stability from patch development/iteration.
+- **Snapshot Naming**: Updated Packer snapshot name to `rivendell-4.4.1-vanilla-{{timestamp}}` to reflect the unpatched base image.
+
 ## v0.25.0 - 2026-06-10
 ### Changes:
 - **Dual-Architecture Golden Image Build**: Automatically detects architecture (AMD64 vs ARM64).
