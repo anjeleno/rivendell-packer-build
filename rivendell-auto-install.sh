@@ -1,6 +1,6 @@
 #!/bin/bash
 # Rivendell Universal Auto-Install Script (Unattended)
-# Version: 0.26.1 (Vanilla Golden Image Build)
+# Version: 0.26.2 (Vanilla Golden Image Build)
 # Date: 2026-06-12
 # Description: Automates Rivendell deployment cleanly on Ubuntu 24.04/26.04.
 #              Automatically detects architecture (AMD64 vs ARM64).
@@ -281,12 +281,26 @@ EOF
     cd /tmp || exit 1
 
     # 1. Install system layer dependencies
+    # Build-dependency list per Rivendell's INSTALL doc (Ubuntu 24.04 LTS section),
+    # minus hpklinux-dev (requires Paravel's private apt repo; configure.ac
+    # already degrades gracefully when asihpi/hpi.h is absent).
     sudo apt-get update
     sudo apt-get -o Dpkg::Use-Pty=0 -o Dpkg::Options::="--force-confdef" -o Dpkg::Options::="--force-confold" install -y \
         mariadb-server mariadb-client apache2 \
-        libqt5sql5-mysql cutmp3 vorbis-tools flac lame normalize-audio \
-        libsoundtouch1 shared-mime-info sudo git devscripts equivs \
-        dpkg-dev build-essential debhelper patch
+        git devscripts equivs dpkg-dev build-essential debhelper patch \
+        autoconf automake libtool libltdl-dev autoconf-archive pkg-config make g++ \
+        qtbase5-dev qttools5-dev-tools libqt5sql5-mysql libqt5webkit5-dev \
+        libexpat1-dev libexpat1 libssl-dev libcurl4-gnutls-dev libpam0g-dev \
+        libsamplerate0-dev libsndfile1-dev libcdparanoia-dev \
+        libcoverart-dev libdiscid-dev libmusicbrainz5-dev \
+        libid3-dev libtag1-dev \
+        libjack-jackd2-dev libasound2-dev libsoundtouch-dev \
+        libflac-dev libflac++-dev libmp3lame-dev libmad0-dev libtwolame-dev \
+        libsystemd-dev libmagick++-dev \
+        libvorbis-dev vorbis-tools flac lame normalize-audio cutmp3 libsoundtouch1 \
+        python3 python3-pycurl python3-pymysql python3-serial python3-requests python3-venv python3-virtualenv \
+        docbook5-xml libxml2-utils docbook-xsl-ns xsltproc fop \
+        shared-mime-info
 
     # 2. Replicate Paravel group/permissions
     sudo groupadd -g 514 rivendell || true

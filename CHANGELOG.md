@@ -1,4 +1,9 @@
 # Changelog
+## v0.26.2 - 2026-06-12
+### Changes:
+- **Fix `autoconf` failure (`possibly undefined macro: AC_MSG_ERROR`)**: caused by a missing `pkg-config` (no `pkg.m4`), so `aclocal` couldn't resolve `PKG_CHECK_MODULES` in `configure.ac:96`, leaving the embedded `AC_MSG_ERROR` unexpanded.
+- **Replaced the minimal system dependency list with Rivendell's documented Ubuntu 24.04 LTS build dependencies** (from the project's own `INSTALL` file): Qt5 dev headers, JACK/ALSA/FLAC/taglib/libsamplerate/MusicBrainz/SoundTouch/ImageMagick dev packages, `pkg-config`, `autoconf-archive`, etc. Omitted `hpklinux-dev` (requires Paravel's private apt repo; `configure.ac` already handles its absence gracefully).
+
 ## v0.26.1 - 2026-06-12
 ### Changes:
 - **Fix `install_rivendell` build failure**: A fresh v4.4.1 checkout ships `debian/control.src` (a template), not `debian/control`. `mk-build-deps debian/control` was therefore failing with `E: You must put some 'deb-src' URIs in your sources.list` because it fell back to treating the path as an apt package name.
