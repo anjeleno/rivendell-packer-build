@@ -84,3 +84,11 @@ export DIGITALOCEAN_TOKEN="dop_v1_YOUR_TOKEN_HERE"
 cd /root/rivendell-build
 ./packer-rebuild.sh
 ```
+
+# Reset + Pull changes from repo after patching if build fails with erros
+```
+git fetch --all
+git reset --hard origin/main
+packer init rivendell.pkr.hcl
+packer build rivendell.pkr.hcl
+```
