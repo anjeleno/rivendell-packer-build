@@ -1,6 +1,6 @@
 #!/bin/bash
 # Rivendell Universal Auto-Install Script (Unattended)
-# Version: 0.26.3 (Vanilla Golden Image Build)
+# Version: 0.26.4 (Vanilla Golden Image Build)
 # Date: 2026-06-13
 # Description: Automates Rivendell deployment cleanly on Ubuntu 24.04/26.04.
 #              Automatically detects architecture (AMD64 vs ARM64).
@@ -331,6 +331,10 @@ EOF
 
     # 6. Build and Install
     sudo mk-build-deps --install --remove --tool="apt-get -y" debian/control
+    # Required so configure.ac symlinks helpers/docbook -> the system docbook-xsl
+    # stylesheets; without it, docs/stylesheets' xsltproc step fails to find
+    # helpers/docbook/template/titlepage.xsl and the whole build aborts.
+    export DOCBOOK_STYLESHEETS=/usr/share/xml/docbook/stylesheet/docbook-xsl-ns
     dpkg-buildpackage -us -uc -b
     cd ..
     sudo dpkg -i *.deb

@@ -1,4 +1,10 @@
 # Changelog
+## v0.26.4 - 2026-06-13
+### Changes:
+- **Fix `dpkg-buildpackage` failure during `docs/stylesheets` build**: `xsltproc -o book-fo-titlepages.xsl ../../helpers/docbook/template/titlepage.xsl ...` failed with "cannot parse ../../helpers/docbook/template/titlepage.xsl" (`make: *** [debian/rules:7: build] Error 2`), aborting the entire build after everything else (lib, all apps, apis, tests) compiled successfully.
+- **Root cause**: `configure.ac` only creates the `helpers/docbook` symlink to the system docbook-xsl stylesheets (which provides `template/titlepage.xsl`) if the `$DOCBOOK_STYLESHEETS` env var is set. We installed `docbook-xsl-ns` in v0.26.2 but never exported the variable.
+- **Fix**: export `DOCBOOK_STYLESHEETS=/usr/share/xml/docbook/stylesheet/docbook-xsl-ns` (per Rivendell's `INSTALL` doc, Ubuntu 24.04 LTS section) before `dpkg-buildpackage -us -uc -b`.
+
 ## v0.26.3 - 2026-06-13
 ### Changes:
 - **Fix `mk-build-deps: dpkg --unpack failed` / "requested operation requires superuser privilege"**: `install_rivendell` runs as the unprivileged `rd` user (phase 2). `mk-build-deps --install ... debian/control` successfully built the `rivendell-build-deps` dummy package, but then failed while trying to `dpkg --unpack` it without root.
