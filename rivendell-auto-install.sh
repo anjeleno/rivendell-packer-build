@@ -1,7 +1,7 @@
 #!/bin/bash
 # Rivendell Universal Auto-Install Script (Unattended)
-# Version: 0.26.2 (Vanilla Golden Image Build)
-# Date: 2026-06-12
+# Version: 0.26.3 (Vanilla Golden Image Build)
+# Date: 2026-06-13
 # Description: Automates Rivendell deployment cleanly on Ubuntu 24.04/26.04.
 #              Automatically detects architecture (AMD64 vs ARM64).
 #              Bypasses Paravel repository limitations on ARM64 by manually
@@ -330,7 +330,7 @@ EOF
     ./autogen.sh
 
     # 6. Build and Install
-    mk-build-deps --install --remove --tool="apt-get -y" debian/control
+    sudo mk-build-deps --install --remove --tool="apt-get -y" debian/control
     dpkg-buildpackage -us -uc -b
     cd ..
     sudo dpkg -i *.deb

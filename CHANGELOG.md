@@ -1,4 +1,9 @@
 # Changelog
+## v0.26.3 - 2026-06-13
+### Changes:
+- **Fix `mk-build-deps: dpkg --unpack failed` / "requested operation requires superuser privilege"**: `install_rivendell` runs as the unprivileged `rd` user (phase 2). `mk-build-deps --install ... debian/control` successfully built the `rivendell-build-deps` dummy package, but then failed while trying to `dpkg --unpack` it without root.
+- **Added `sudo` to the `mk-build-deps` invocation** so it can install the generated build-dependencies package (and pull in `apt-get`-resolved deps via `--tool="apt-get -y"`).
+
 ## v0.26.2 - 2026-06-12
 ### Changes:
 - **Fix `autoconf` failure (`possibly undefined macro: AC_MSG_ERROR`)**: caused by a missing `pkg-config` (no `pkg.m4`), so `aclocal` couldn't resolve `PKG_CHECK_MODULES` in `configure.ac:96`, leaving the embedded `AC_MSG_ERROR` unexpanded.
