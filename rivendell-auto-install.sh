@@ -1,6 +1,6 @@
 #!/bin/bash
 # Rivendell Universal Auto-Install Script (Unattended)
-# Version: 0.26.0 (Vanilla Golden Image Build)
+# Version: 0.26.1 (Vanilla Golden Image Build)
 # Date: 2026-06-12
 # Description: Automates Rivendell deployment cleanly on Ubuntu 24.04/26.04.
 #              Automatically detects architecture (AMD64 vs ARM64).
@@ -311,13 +311,17 @@ EOF
     cd rivendell
     git checkout tags/v4.4.1 -b v4.4.1-vanilla
 
-    # 5. Build and Install
+    # 5. Generate debian/control, debian/rules, debian/changelog and the
+    #    autotools build system (configure script) from the .src templates
+    ./autogen.sh
+
+    # 6. Build and Install
     mk-build-deps --install --remove --tool="apt-get -y" debian/control
     dpkg-buildpackage -us -uc -b
     cd ..
     sudo dpkg -i *.deb
 
-    # 6. Database Initialization
+    # 7. Database Initialization
     sudo systemctl start mariadb
     RD_DB_PASS=$(grep '^Password=' /etc/rd.conf | cut -d'=' -f2)
     sudo mariadb -u root <<EOF
@@ -328,7 +332,7 @@ FLUSH PRIVILEGES;
 EOF
     sudo mariadb -u rduser -p"$RD_DB_PASS" Rivendell < /usr/local/src/rivendell-build/rivendell/schema/rivendell.sql
     
-    # 7. Service Registration
+    # 8. Service Registration
     sudo systemctl daemon-reload
     sudo systemctl enable rdcatchd rdairplay rdlogmanager || true
     sudo systemctl start rdcatchd rdairplay rdlogmanager || true

@@ -1,4 +1,9 @@
 # Changelog
+## v0.26.1 - 2026-06-12
+### Changes:
+- **Fix `install_rivendell` build failure**: A fresh v4.4.1 checkout ships `debian/control.src` (a template), not `debian/control`. `mk-build-deps debian/control` was therefore failing with `E: You must put some 'deb-src' URIs in your sources.list` because it fell back to treating the path as an apt package name.
+- **Added `./autogen.sh` step**: Runs immediately after `git checkout` and before `mk-build-deps`. This generates `debian/control`, `debian/rules`, `debian/changelog` from their `.src` templates and produces the `configure` script via autotools, matching Rivendell's own `configure_build.sh` process.
+
 ## v0.26.0 - 2026-06-12
 ### Changes:
 - **Vanilla Golden Image Build**: Removed the in-build `mp3_ingest.patch` injection from `install_rivendell`. The build now compiles and installs stock, unpatched Rivendell v4.4.1 from source.
