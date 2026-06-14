@@ -1,4 +1,10 @@
 # Changelog
+## v0.26.6 - 2026-06-14
+### Changes:
+- **Fix `install_rivendell` step 7 failure**: `mariadb -u rduser ... Rivendell < .../schema/rivendell.sql` failed with "No such file or directory" - all 5 `.deb` packages installed and configured successfully (v0.26.5 fix confirmed working!), but the database step still referenced a static `schema/rivendell.sql` dump that no longer exists in v4.4.1.
+- **Root cause**: v4.4.1 builds/upgrades the database schema programmatically via `rddbmgr` (see `utils/rddbmgr/updateschema.cpp`), not a static SQL dump. The `rivendell` package's `postinst` already calls `rddbmgr --modify` automatically, but at that point in `dpkg -i`/`apt-get -f`, MariaDB isn't running yet and the `rduser`/`Rivendell` DB don't exist yet, so it fails with "Access denied for user 'rduser'@'localhost'" (visible in the log, non-fatal to the package install).
+- **Fix**: after creating the `Rivendell` database and `rduser` MySQL user, run `sudo rddbmgr --modify` to build the schema (re-running what postinst already attempted, now that the DB exists). Also added `sudo systemctl restart rivendell apache2` in step 8 to restart the services that started without a working DB during postinst.
+
 ## v0.26.5 - 2026-06-14
 ### Changes:
 - **Fix `dpkg -i *.deb` failure ("dependency problems prevent configuration")**: `dpkg-buildpackage` itself now completes successfully (confirms the v0.26.4 `DOCBOOK_STYLESHEETS` fix worked - the build got through `docs/stylesheets` and produced all `.deb` packages). The final `sudo dpkg -i *.deb` step then failed because `dpkg -i` doesn't resolve dependencies: `rivendell`, `rivendell-dev`, `rivendell-importers`, `rivendell-select`, and `rivendell-webget` were left unconfigured, missing `python3-mysqldb`, `icedax`, and `qt5-style-plugins`.

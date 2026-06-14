@@ -1,6 +1,6 @@
 #!/bin/bash
 # Rivendell Universal Auto-Install Script (Unattended)
-# Version: 0.26.5 (Vanilla Golden Image Build)
+# Version: 0.26.6 (Vanilla Golden Image Build)
 # Date: 2026-06-14
 # Description: Automates Rivendell deployment cleanly on Ubuntu 24.04/26.04.
 #              Automatically detects architecture (AMD64 vs ARM64).
@@ -352,10 +352,15 @@ CREATE USER IF NOT EXISTS 'rduser'@'localhost' IDENTIFIED BY '$RD_DB_PASS';
 GRANT ALL PRIVILEGES ON Rivendell.* TO 'rduser'@'localhost';
 FLUSH PRIVILEGES;
 EOF
-    sudo mariadb -u rduser -p"$RD_DB_PASS" Rivendell < /usr/local/src/rivendell-build/rivendell/schema/rivendell.sql
-    
+    # v4.4.1 ships no static schema/rivendell.sql dump - the schema is built
+    # and upgraded by rddbmgr. The rivendell package's postinst already calls
+    # `rddbmgr --modify`, but it ran before the DB/rduser existed and failed
+    # ("Access denied for user 'rduser'@'localhost'"), so run it again now.
+    sudo rddbmgr --modify
+
     # 8. Service Registration
     sudo systemctl daemon-reload
+    sudo systemctl restart rivendell apache2
     sudo systemctl enable rdcatchd rdairplay rdlogmanager || true
     sudo systemctl start rdcatchd rdairplay rdlogmanager || true
 
