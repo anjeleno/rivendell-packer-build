@@ -81,8 +81,11 @@ changes, and re-runs the build:
 
 ```bash
 export DIGITALOCEAN_TOKEN="dop_v1_YOUR_TOKEN_HERE"
+curl -fsSL     https://raw.githubusercontent.com/anjeleno/rivendell-packer-build/main/packer-rebuild.sh | bash
+
 cd /root/rivendell-build
 ./packer-rebuild.sh
+curl -fsSL https://raw.githubusercontent.com/anjeleno/rivendell-packer-build/main/packer-rebuild.sh | bash
 ```
 
 # Reset + Pull changes from repo after patching if build fails with erros
