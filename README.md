@@ -1,6 +1,6 @@
 # Rivendell Golden Image Packer Build
 
-This repository contains an automated HashiCorp Packer blueprint and a universal unattended installation script for deploying a fully-customized Rivendell audio automation environment (v4.4.1). 
+This repository contains an automated HashiCorp Packer blueprint and a universal unattended installation script for deploying a Customized Rivendell Radio Automation development environment (v4.4.1). 
 
 It includes the custom "MP3 Ingestion" codebase patch, custom SQLite imports, and auto-configured JACK, Icecast, and Live Remote environments.
 
