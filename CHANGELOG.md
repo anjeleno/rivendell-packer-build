@@ -1,4 +1,9 @@
 # Changelog
+## v0.26.5 - 2026-06-14
+### Changes:
+- **Fix `dpkg -i *.deb` failure ("dependency problems prevent configuration")**: `dpkg-buildpackage` itself now completes successfully (confirms the v0.26.4 `DOCBOOK_STYLESHEETS` fix worked - the build got through `docs/stylesheets` and produced all `.deb` packages). The final `sudo dpkg -i *.deb` step then failed because `dpkg -i` doesn't resolve dependencies: `rivendell`, `rivendell-dev`, `rivendell-importers`, `rivendell-select`, and `rivendell-webget` were left unconfigured, missing `python3-mysqldb`, `icedax`, and `qt5-style-plugins`.
+- **Fix**: `dpkg -i *.deb || true` followed by `sudo apt-get install -f -y`, the standard pattern for installing local `.deb`s with apt-resolved dependencies - `apt-get -f` pulls in the three missing packages and finishes configuring everything `dpkg -i` left unconfigured.
+
 ## v0.26.4 - 2026-06-13
 ### Changes:
 - **Fix `dpkg-buildpackage` failure during `docs/stylesheets` build**: `xsltproc -o book-fo-titlepages.xsl ../../helpers/docbook/template/titlepage.xsl ...` failed with "cannot parse ../../helpers/docbook/template/titlepage.xsl" (`make: *** [debian/rules:7: build] Error 2`), aborting the entire build after everything else (lib, all apps, apis, tests) compiled successfully.

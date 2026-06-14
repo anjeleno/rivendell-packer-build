@@ -1,7 +1,7 @@
 #!/bin/bash
 # Rivendell Universal Auto-Install Script (Unattended)
-# Version: 0.26.4 (Vanilla Golden Image Build)
-# Date: 2026-06-13
+# Version: 0.26.5 (Vanilla Golden Image Build)
+# Date: 2026-06-14
 # Description: Automates Rivendell deployment cleanly on Ubuntu 24.04/26.04.
 #              Automatically detects architecture (AMD64 vs ARM64).
 #              Bypasses Paravel repository limitations on ARM64 by manually
@@ -337,7 +337,11 @@ EOF
     export DOCBOOK_STYLESHEETS=/usr/share/xml/docbook/stylesheet/docbook-xsl-ns
     dpkg-buildpackage -us -uc -b
     cd ..
-    sudo dpkg -i *.deb
+    # dpkg -i installs the .debs but can't resolve missing runtime deps
+    # (python3-mysqldb, icedax, qt5-style-plugins) on its own; apt-get -f
+    # pulls those in and finishes configuring the unpacked packages.
+    sudo dpkg -i *.deb || true
+    sudo apt-get -o Dpkg::Use-Pty=0 install -f -y
 
     # 7. Database Initialization
     sudo systemctl start mariadb
