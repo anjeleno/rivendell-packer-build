@@ -1,4 +1,12 @@
 # Changelog
+## v0.26.10 - 2026-06-15
+### Changes:
+- **Fix daemons left running against a database `import_sql_backup` is about to destroy**: `install_rivendell` step 8 starts `rivendell`, `apache2`, `rdcatchd`, `rdairplay`, and `rdlogmanager` against the schema `rddbmgr --create` just built. `import_sql_backup` then immediately `DROP DATABASE`/`CREATE DATABASE`/reimports/`rddbmgr --modify`s that same database while those daemons are still connected.
+- **Root cause**: Rivendell's schema is `ENGINE=MyISAM` (table-level locking). A `DROP DATABASE` while connected daemons hold table locks can hang the build indefinitely, and even if it doesn't, a snapshot taken with those daemons pointed at a since-replaced DB would boot into the golden image in a crashed/stale state.
+- **Fix**: in `import_sql_backup`, `sudo systemctl stop` the affected services before the `DROP DATABASE`/reimport/`rddbmgr --modify` sequence, then restart them afterward (mirroring step 8's own `systemctl restart rivendell apache2` / `systemctl start rdcatchd rdairplay rdlogmanager` pattern).
+- **Fix idempotency bug in `extract_mysql_password`**: it was gated behind `step_completed`, but only sets the in-memory `$MYSQL_PASSWORD` variable with no persisted side effect. If its step marker existed from a prior partial run (e.g. a manual rerun on a held-open droplet) while `import_sql_backup` hadn't completed yet, `$MYSQL_PASSWORD` would be empty in the new process and break the DB import's password. Now called unconditionally every run.
+- **Remove stale comment**: deleted the orphaned `# --- CHANGE HERE: Bypass the Paravel installer function call ---` comment above the `install_rivendell` step - that bypass logic already lives inside `install_rivendell` itself per its own header description.
+
 ## v0.26.9 - 2026-06-15
 ### Changes:
 - **Fix `import_sql_backup` failure**: `ERROR 1698 (28000): Access denied for user 'root'@'localhost'` at the start of `import_sql_backup`, ~1h39m into the build (everything before it, including `install_rivendell`, now completes successfully).

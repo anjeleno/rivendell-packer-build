@@ -1,6 +1,6 @@
 #!/bin/bash
 # Rivendell Universal Auto-Install Script (Unattended)
-# Version: 0.26.9 (Vanilla Golden Image Build - DB Auth Fix)
+# Version: 0.26.10 (Vanilla Golden Image Build - Proactive Audit Fixes)
 # Date: 2026-06-15
 # Description: Automates Rivendell deployment cleanly on Ubuntu 24.04/26.04.
 #              Automatically detects architecture (AMD64 vs ARM64).
@@ -90,6 +90,13 @@ import_sql_backup() {
     }
 
     if [ -f "$BACKUP_FILE" ]; then
+        # Stop the daemons step 7 started against the --create schema before
+        # swapping the database out from under them. Rivendell's tables are
+        # MyISAM (table-level locking), so DROP DATABASE while these are
+        # connected can hang; even if it didn't, a snapshot taken with them
+        # pointed at a since-replaced DB would boot into the golden image broken.
+        sudo systemctl stop rivendell rdcatchd rdairplay rdlogmanager apache2 || true
+
         # Recreate the DB to wipe the rddbmgr --create schema cleanly
         # (DROP TABLE `*` is not valid SQL)
         # sudo (not -h/-u root over TCP): root@localhost uses unix_socket
@@ -103,6 +110,10 @@ import_sql_backup() {
         # installed v4.4.1 daemons can start
         echo "Upgrading imported DB schema to v4.4.1..."
         sudo rddbmgr --modify
+
+        # Bring the daemons back up against the upgraded schema
+        sudo systemctl restart rivendell apache2
+        sudo systemctl start rdcatchd rdairplay rdlogmanager || true
     else
         echo "Backup database payload not discovered. Skipping import."
     fi
@@ -461,7 +472,6 @@ if ! step_completed "install_xrdp"; then install_xrdp; fi
 if ! step_completed "configure_xrdp"; then configure_xrdp; fi
 if ! step_completed "set_mate_default"; then set_mate_default; fi
 
-# --- CHANGE HERE: Bypass the Paravel installer function call ---
 if ! step_completed "install_rivendell"; then install_rivendell; fi
 
 if [[ "$INSTALL_TYPE" == "3" ]]; then
@@ -481,7 +491,11 @@ else
     if ! step_completed "enable_icecast"; then enable_icecast; fi
     if ! step_completed "disable_pulseaudio"; then disable_pulseaudio; fi
     if ! step_completed "fix_qt5"; then fix_qt5; fi
-    if ! step_completed "extract_mysql_password"; then extract_mysql_password; fi
+    # Not gated on step_completed: it only sets an in-memory variable for the
+    # two steps below, with no persisted side effect, so it must run every
+    # invocation - a step marker from a prior partial run would otherwise
+    # leave $MYSQL_PASSWORD unset here.
+    extract_mysql_password
     if ! step_completed "update_backup_script"; then update_backup_script; fi
     if ! step_completed "import_sql_backup"; then import_sql_backup; fi
     if ! step_completed "fix_pypad_syntax"; then fix_pypad_syntax; fi
