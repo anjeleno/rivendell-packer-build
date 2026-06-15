@@ -1,4 +1,10 @@
 # Changelog
+## v0.27.1 - 2026-06-15
+### Changes:
+- **Fix `rivendell.pkr.hcl` final cleanup provisioner destroying the droplet before snapshotting**: the build log shows `Build Process Completed Successfully.` - `rivendell-auto-install.sh` (v0.27.0) ran end-to-end with no errors for the first time. Packer then errored with `/tmp/script_9800.sh: 4: history: not found`, exit 127, and destroyed the droplet without writing a snapshot.
+- **Root cause**: `history -c` is a bash builtin. Packer's `shell` provisioner runs `inline` commands via `/bin/sh` (dash on Ubuntu), which has no `history` builtin - the command is "not found", exits 127, and Packer treats the whole build as failed.
+- **Fix**: replaced `"history -c"` in the final cleanup provisioner with `"rm -f /root/.bash_history /home/rd/.bash_history"`, which achieves the same goal (no shell history baked into the golden image) using a command that works under `/bin/sh`.
+
 ## v0.27.0 - 2026-06-15
 ### Changes:
 - **Decouple database import from the golden image build**: `import_sql_backup` was confirmed broken again - `RDDB_v430_Cloud.sql` is a v4.3.0 dump whose `DROPBOXES` table has neither `CREATE_GROUP` nor `CODING_FORMAT`, so the v0.26.7 `ALTER TABLE DROPBOXES ADD COLUMN IF NOT EXISTS CODING_FORMAT ... AFTER CREATE_GROUP` (run *before* `rddbmgr --modify`) fails with `ERROR 1054 (42S22): Unknown column 'CREATE_GROUP' in 'DROPBOXES'` and kills the build under `set -e`, ~1h40m into every run.

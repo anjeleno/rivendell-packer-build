@@ -66,7 +66,11 @@ build {
     inline = [
       "rm -rf /opt/rivendell-install.sh /opt/APPS",
       "rm -f /root/.ssh/authorized_keys",
-      "history -c"
+      # `history -c` is a bash builtin; Packer's inline shell runs under
+      # /bin/sh (dash), which has no such builtin and exits 127 - causing
+      # Packer to treat the whole build as failed and destroy the droplet
+      # without snapshotting, even though provisioning completed cleanly.
+      "rm -f /root/.bash_history /home/rd/.bash_history"
     ]
   }
 }
