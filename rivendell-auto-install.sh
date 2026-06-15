@@ -1,6 +1,6 @@
 #!/bin/bash
 # Rivendell Universal Auto-Install Script (Unattended)
-# Version: 0.26.10 (Vanilla Golden Image Build - Proactive Audit Fixes)
+# Version: 0.26.11 (Vanilla Golden Image Build - Directory/User Structure Audit)
 # Date: 2026-06-15
 # Description: Automates Rivendell deployment cleanly on Ubuntu 24.04/26.04.
 #              Automatically detects architecture (AMD64 vs ARM64).
@@ -95,7 +95,9 @@ import_sql_backup() {
         # MyISAM (table-level locking), so DROP DATABASE while these are
         # connected can hang; even if it didn't, a snapshot taken with them
         # pointed at a since-replaced DB would boot into the golden image broken.
-        sudo systemctl stop rivendell rdcatchd rdairplay rdlogmanager apache2 || true
+        # (rdcatchd/rdairplay/rdlogmanager are spawned by rdservice itself,
+        # not separate units - stopping/restarting rivendell covers them.)
+        sudo systemctl stop rivendell apache2 || true
 
         # Recreate the DB to wipe the rddbmgr --create schema cleanly
         # (DROP TABLE `*` is not valid SQL)
@@ -113,7 +115,6 @@ import_sql_backup() {
 
         # Bring the daemons back up against the upgraded schema
         sudo systemctl restart rivendell apache2
-        sudo systemctl start rdcatchd rdairplay rdlogmanager || true
     else
         echo "Backup database payload not discovered. Skipping import."
     fi
@@ -289,7 +290,6 @@ set_mate_default() {
 install_rivendell() {
     # 0. Ensure the config file exists
     if [ ! -f /etc/rd.conf ]; then
-        sudo groupadd -g 514 rivendell || true
         sudo tee /etc/rd.conf > /dev/null <<EOF
 [mySQL]
 Loginname=rduser
@@ -297,7 +297,10 @@ Password=rduser
 Database=Rivendell
 Hostname=localhost
 EOF
-        sudo chown rd:rivendell /etc/rd.conf
+        # The 'rivendell' group doesn't exist yet (the package's postinst
+        # creates it with GID 150 during step 6); world-readable mode 644
+        # is what actually matters for rddbmgr/rdservice to read this file.
+        sudo chown rd:rd /etc/rd.conf
         sudo chmod 644 /etc/rd.conf
     fi
 
@@ -326,11 +329,7 @@ EOF
         docbook5-xml libxml2-utils docbook-xsl-ns xsltproc fop \
         shared-mime-info
 
-    # 2. Replicate Paravel group/permissions
-    sudo groupadd -g 514 rivendell || true
-    sudo usermod -aG rivendell rd || true
-    
-    # 3. Provision real-time audio access (Your Custom Security Limits)
+    # 2. Provision real-time audio access (Your Custom Security Limits)
     sudo tee /etc/security/limits.d/rivendell.conf > /dev/null <<EOF
 @rivendell       hard    rtprio          95
 @rivendell       soft    rtprio          80
@@ -338,7 +337,7 @@ EOF
 @rivendell       soft    memlock         unlimited
 EOF
 
-    # 4. Build (Vanilla - no patches applied at this stage)
+    # 3. Build (Vanilla - no patches applied at this stage)
     BUILD_DIR="/usr/local/src/rivendell-build"
     sudo mkdir -p $BUILD_DIR
     sudo chmod 777 $BUILD_DIR
@@ -349,11 +348,11 @@ EOF
     cd rivendell
     git checkout tags/v4.4.1 -b v4.4.1-vanilla
 
-    # 5. Generate debian/control, debian/rules, debian/changelog and the
+    # 4. Generate debian/control, debian/rules, debian/changelog and the
     #    autotools build system (configure script) from the .src templates
     ./autogen.sh
 
-    # 6. Build and Install
+    # 5. Build and Install
     sudo mk-build-deps --install --remove --tool="apt-get -y" debian/control
     # Required so configure.ac symlinks helpers/docbook -> the system docbook-xsl
     # stylesheets; without it, docs/stylesheets' xsltproc step fails to find
@@ -367,7 +366,12 @@ EOF
     sudo dpkg -i *.deb || true
     sudo apt-get -o Dpkg::Use-Pty=0 install -f -y
 
-    # 7. Database Initialization
+    # The rivendell package's postinst creates the 'rivendell' group (GID 150)
+    # as part of the above; add 'rd' to it now that it exists so 'rd' has
+    # access to /var/snd (owned rivendell:rivendell, mode 775).
+    sudo usermod -aG rivendell rd || true
+
+    # 6. Database Initialization
     sudo systemctl start mariadb
     RD_DB_PASS=$(grep '^Password=' /etc/rd.conf | cut -d'=' -f2)
     sudo mariadb -u root <<EOF
@@ -385,11 +389,12 @@ EOF
     # the v4.4.1 schema from scratch.
     sudo rddbmgr --create
 
-    # 8. Service Registration
+    # 7. Service Registration
+    # Note: rdcatchd/rdairplay/rdlogmanager are not separate systemd units -
+    # rivendell.service runs rdservice, which spawns them itself based on the
+    # STATIONS/SERVICES rows for this host in the database.
     sudo systemctl daemon-reload
     sudo systemctl restart rivendell apache2
-    sudo systemctl enable rdcatchd rdairplay rdlogmanager || true
-    sudo systemctl start rdcatchd rdairplay rdlogmanager || true
 
     mark_step_completed "install_rivendell"
 }

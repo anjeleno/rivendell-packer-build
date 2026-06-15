@@ -1,4 +1,10 @@
 # Changelog
+## v0.26.11 - 2026-06-15
+### Changes:
+- **Remove stale `groupadd -g 514 rivendell` calls**: cloned the actual v4.4.1 tag and compared `debian/postinst` against this script. The real package creates the `rivendell` group/user with **GID/UID 150** itself during `dpkg -i`/`apt-get -f` (step 5) and uses it to own `/var/snd`, `/var/log/rivendell`, etc. Our script pre-created the group with **GID 514** (twice, under a "Replicate Paravel group/permissions" comment - a leftover from the old Paravel-apt-repo install path), which caused the postinst's own `groupadd -g 150` to silently fail and left the `rivendell` system user in GID 514 instead of 150.
+- **Fix**: removed both `groupadd -g 514 rivendell` calls. `chown rd:rivendell /etc/rd.conf` (step 0, which ran before the group existed either way) changed to `chown rd:rd` - mode 644 is what actually makes the file readable. Moved `usermod -aG rivendell rd` to after step 5 (`apt-get install -f -y`), once the package's own postinst has created the `rivendell` group (GID 150) for `rd` to join.
+- **Remove no-op `systemctl enable/start rdcatchd rdairplay rdlogmanager`**: confirmed via the upstream `systemd/` directory that Rivendell ships exactly one unit, `rivendell.service` (`ExecStart=/usr/sbin/rdservice`). `rdservice` spawns `rdcatchd`/`rdairplay`/`rdlogmanager` itself as child processes based on the `STATIONS`/`SERVICES` rows for this host - there are no corresponding `.service` units, so these `systemctl ... || true` calls (in `install_rivendell` step 7 and the v0.26.10 `import_sql_backup` restart) silently failed and did nothing. Removed; `systemctl restart rivendell` is what actually matters.
+
 ## v0.26.10 - 2026-06-15
 ### Changes:
 - **Fix daemons left running against a database `import_sql_backup` is about to destroy**: `install_rivendell` step 8 starts `rivendell`, `apache2`, `rdcatchd`, `rdairplay`, and `rdlogmanager` against the schema `rddbmgr --create` just built. `import_sql_backup` then immediately `DROP DATABASE`/`CREATE DATABASE`/reimports/`rddbmgr --modify`s that same database while those daemons are still connected.
