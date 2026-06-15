@@ -1,6 +1,6 @@
 #!/bin/bash
 # Rivendell Universal Auto-Install Script (Unattended)
-# Version: 0.26.11 (Vanilla Golden Image Build - Directory/User Structure Audit)
+# Version: 0.27.0 (Vanilla Golden Image Build - Database Import Decoupled)
 # Date: 2026-06-15
 # Description: Automates Rivendell deployment cleanly on Ubuntu 24.04/26.04.
 #              Automatically detects architecture (AMD64 vs ARM64).
@@ -9,6 +9,10 @@
 #              Builds vanilla, unpatched Rivendell v4.4.1 from source. Custom
 #              patches (e.g. mp3_ingest.patch) are layered on top of this golden
 #              image as a separate stage, not injected during this build.
+#              The production database import (RDDB_v430_Cloud.sql) is likewise
+#              NOT performed here - it ships as APPS/rivendell-data-ingest.sh
+#              for a one-time manual SSH run after first boot of a deployed
+#              droplet.
 
 set -e
 
@@ -75,50 +79,6 @@ extract_mysql_password() {
         MYSQL_PASSWORD="rduser"
     fi
     mark_step_completed "extract_mysql_password"
-}
-
-import_sql_backup() {
-    echo "Dropping default tables and importing clean database environment..."
-    DB_HOST="localhost"
-    DB_USER="rduser"
-    DB_PASS="$MYSQL_PASSWORD"
-    DB_NAME="Rivendell"
-    BACKUP_FILE="/home/rd/imports/APPS/RDDB_v430_Cloud.sql"
-
-    execute_mariadb_command() {
-        mariadb -h "$DB_HOST" -u "$DB_USER" -p"$DB_PASS" "$DB_NAME" "$@" 2>&1
-    }
-
-    if [ -f "$BACKUP_FILE" ]; then
-        # Stop the daemons step 7 started against the --create schema before
-        # swapping the database out from under them. Rivendell's tables are
-        # MyISAM (table-level locking), so DROP DATABASE while these are
-        # connected can hang; even if it didn't, a snapshot taken with them
-        # pointed at a since-replaced DB would boot into the golden image broken.
-        # (rdcatchd/rdairplay/rdlogmanager are spawned by rdservice itself,
-        # not separate units - stopping/restarting rivendell covers them.)
-        sudo systemctl stop rivendell apache2 || true
-
-        # Recreate the DB to wipe the rddbmgr --create schema cleanly
-        # (DROP TABLE `*` is not valid SQL)
-        # sudo (not -h/-u root over TCP): root@localhost uses unix_socket
-        # auth, which only authenticates when the connecting OS user is
-        # actually root - this step runs as 'rd', so it must go via sudo.
-        sudo mariadb -u root -e "DROP DATABASE IF EXISTS \`$DB_NAME\`; CREATE DATABASE \`$DB_NAME\`; GRANT ALL PRIVILEGES ON \`$DB_NAME\`.* TO '$DB_USER'@'localhost'; FLUSH PRIVILEGES;"
-        mariadb -h "$DB_HOST" -u "$DB_USER" -p"$DB_PASS" "$DB_NAME" < "$BACKUP_FILE" 2>&1
-        execute_mariadb_command -e "ALTER TABLE DROPBOXES ADD COLUMN IF NOT EXISTS CODING_FORMAT int(11) NOT NULL default -1 AFTER CREATE_GROUP;"
-
-        # The imported dump is a v4.3.0 schema; upgrade it to v4.4.1 so the
-        # installed v4.4.1 daemons can start
-        echo "Upgrading imported DB schema to v4.4.1..."
-        sudo rddbmgr --modify
-
-        # Bring the daemons back up against the upgraded schema
-        sudo systemctl restart rivendell apache2
-    else
-        echo "Backup database payload not discovered. Skipping import."
-    fi
-    mark_step_completed "import_sql_backup"
 }
 
 update_backup_script() {
@@ -502,7 +462,6 @@ else
     # leave $MYSQL_PASSWORD unset here.
     extract_mysql_password
     if ! step_completed "update_backup_script"; then update_backup_script; fi
-    if ! step_completed "import_sql_backup"; then import_sql_backup; fi
     if ! step_completed "fix_pypad_syntax"; then fix_pypad_syntax; fi
     if ! step_completed "enable_firewall"; then enable_firewall; fi
     if ! step_completed "harden_ssh"; then harden_ssh; fi
