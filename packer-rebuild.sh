@@ -28,5 +28,13 @@ cd /root/rivendell-build
 chmod +x *.sh
 
 # Re-run the build
-packer init rivendell.pkr.hcl
+# packer init queries the GitHub API to resolve the digitalocean plugin
+# version; it occasionally returns a transient 504, so retry a few times.
+for i in 1 2 3 4 5; do
+    if packer init rivendell.pkr.hcl; then
+        break
+    fi
+    echo "packer init failed (attempt $i/5), retrying in 10s..."
+    sleep 10
+done
 packer build rivendell.pkr.hcl
