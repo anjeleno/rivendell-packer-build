@@ -8,6 +8,7 @@ discussion.md
 rivendell-auto-install-BAK
 rebase-and-push.sh
 errors.md
+violation.md
 
 # Local Docker-based build/debug harness (not part of the Packer pipeline)
 /docker/
