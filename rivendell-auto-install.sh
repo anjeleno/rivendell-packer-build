@@ -1,6 +1,6 @@
 #!/bin/bash
 # Rivendell Universal Auto-Install Script (Unattended)
-# Version: 0.26.8 (Vanilla Golden Image Build - Debloated MATE)
+# Version: 0.26.9 (Vanilla Golden Image Build - DB Auth Fix)
 # Date: 2026-06-15
 # Description: Automates Rivendell deployment cleanly on Ubuntu 24.04/26.04.
 #              Automatically detects architecture (AMD64 vs ARM64).
@@ -92,7 +92,10 @@ import_sql_backup() {
     if [ -f "$BACKUP_FILE" ]; then
         # Recreate the DB to wipe the rddbmgr --create schema cleanly
         # (DROP TABLE `*` is not valid SQL)
-        mariadb -h "$DB_HOST" -u root -e "DROP DATABASE IF EXISTS \`$DB_NAME\`; CREATE DATABASE \`$DB_NAME\`; GRANT ALL PRIVILEGES ON \`$DB_NAME\`.* TO '$DB_USER'@'localhost'; FLUSH PRIVILEGES;"
+        # sudo (not -h/-u root over TCP): root@localhost uses unix_socket
+        # auth, which only authenticates when the connecting OS user is
+        # actually root - this step runs as 'rd', so it must go via sudo.
+        sudo mariadb -u root -e "DROP DATABASE IF EXISTS \`$DB_NAME\`; CREATE DATABASE \`$DB_NAME\`; GRANT ALL PRIVILEGES ON \`$DB_NAME\`.* TO '$DB_USER'@'localhost'; FLUSH PRIVILEGES;"
         mariadb -h "$DB_HOST" -u "$DB_USER" -p"$DB_PASS" "$DB_NAME" < "$BACKUP_FILE" 2>&1
         execute_mariadb_command -e "ALTER TABLE DROPBOXES ADD COLUMN IF NOT EXISTS CODING_FORMAT int(11) NOT NULL default -1 AFTER CREATE_GROUP;"
 

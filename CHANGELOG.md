@@ -1,4 +1,10 @@
 # Changelog
+## v0.26.9 - 2026-06-15
+### Changes:
+- **Fix `import_sql_backup` failure**: `ERROR 1698 (28000): Access denied for user 'root'@'localhost'` at the start of `import_sql_backup`, ~1h39m into the build (everything before it, including `install_rivendell`, now completes successfully).
+- **Root cause**: this step runs as the `rd` Linux user. The v0.26.7 fix called `mariadb -h "$DB_HOST" -u root -e "DROP DATABASE ..."` directly, but MariaDB's `root@localhost` account uses `unix_socket` auth, which only authenticates when the connecting *OS* user is `root`. Step 7's equivalent command already runs via `sudo mariadb -u root <<EOF`; this one didn't match that pattern.
+- **Fix**: prefix the command with `sudo` (and drop the `-h "$DB_HOST"` TCP host flag) so it authenticates via the root unix socket, matching step 7.
+
 ## v0.26.8 - 2026-06-15
 ### Changes:
 - **Prevent MATE desktop bloat at install time instead of cleaning it up afterward**: `install_mate` previously installed `ubuntu-mate-desktop`, whose `Recommends` pull in LibreOffice (Writer/Calc/Impress), Evolution, Rhythmbox, Shotwell, Firefox, Transmission, and more - all of which had to be removed in a separate post-install cleanup pass, slowing down the build.
