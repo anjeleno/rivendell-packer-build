@@ -1,6 +1,6 @@
 #!/bin/bash
 # Rivendell Universal Auto-Install Script (Unattended)
-# Version: 0.26.7 (Vanilla Golden Image Build)
+# Version: 0.26.8 (Vanilla Golden Image Build - Debloated MATE)
 # Date: 2026-06-15
 # Description: Automates Rivendell deployment cleanly on Ubuntu 24.04/26.04.
 #              Automatically detects architecture (AMD64 vs ARM64).
@@ -247,8 +247,11 @@ install_tasksel() {
 }
 
 install_mate() {
-    # Non-interactive target execution for MATE environment installation
-    sudo DEBIAN_FRONTEND=noninteractive apt-get install -y ubuntu-mate-desktop
+    # Install ubuntu-mate-core (not -desktop) with --no-install-recommends to
+    # skip LibreOffice, Evolution, Rhythmbox, Firefox, and other desktop
+    # bloat pulled in via Recommends. mate-session-manager, marco, xorg, and
+    # caja are hard Depends of -core, so the XRDP session below still works.
+    sudo DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends ubuntu-mate-core
     mark_step_completed "install_mate"
 }
 

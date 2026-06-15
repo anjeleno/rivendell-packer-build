@@ -1,4 +1,9 @@
 # Changelog
+## v0.26.8 - 2026-06-15
+### Changes:
+- **Prevent MATE desktop bloat at install time instead of cleaning it up afterward**: `install_mate` previously installed `ubuntu-mate-desktop`, whose `Recommends` pull in LibreOffice (Writer/Calc/Impress), Evolution, Rhythmbox, Shotwell, Firefox, Transmission, and more - all of which had to be removed in a separate post-install cleanup pass, slowing down the build.
+- **Fix**: swap `ubuntu-mate-desktop` for `ubuntu-mate-core` (the same package `-desktop` depends on, minus the bloat-laden `Recommends`) and add `--no-install-recommends`. `ubuntu-mate-core`'s hard `Depends` already include `mate-session-manager`, `marco`, `xorg`, `caja`, and `mate-terminal`, so the existing XRDP + `mate-session` setup (`configure_xrdp`, `set_mate_default`) is unaffected.
+
 ## v0.26.7 - 2026-06-15
 ### Changes:
 - **Fix `install_rivendell` step 7 failure**: `sudo rddbmgr --modify` (added in v0.26.6) failed with `rddbmgr: unable to determine DB schema, aborting` and killed the build via `set -e`, immediately after `CREATE DATABASE IF NOT EXISTS Rivendell` - all 5 `.deb` packages installed and configured successfully, but the database step never got further.
