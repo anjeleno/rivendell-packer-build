@@ -1,7 +1,7 @@
 #!/bin/bash
 # Rivendell Universal Auto-Install Script (Unattended)
-# Version: 0.26.6 (Vanilla Golden Image Build)
-# Date: 2026-06-14
+# Version: 0.26.7 (Vanilla Golden Image Build)
+# Date: 2026-06-15
 # Description: Automates Rivendell deployment cleanly on Ubuntu 24.04/26.04.
 #              Automatically detects architecture (AMD64 vs ARM64).
 #              Bypasses Paravel repository limitations on ARM64 by manually
@@ -90,9 +90,16 @@ import_sql_backup() {
     }
 
     if [ -f "$BACKUP_FILE" ]; then
-        execute_mariadb_command -e "SET FOREIGN_KEY_CHECKS = 0; DROP TABLE IF EXISTS \`*\`; SET FOREIGN_KEY_CHECKS = 1;"
+        # Recreate the DB to wipe the rddbmgr --create schema cleanly
+        # (DROP TABLE `*` is not valid SQL)
+        mariadb -h "$DB_HOST" -u root -e "DROP DATABASE IF EXISTS \`$DB_NAME\`; CREATE DATABASE \`$DB_NAME\`; GRANT ALL PRIVILEGES ON \`$DB_NAME\`.* TO '$DB_USER'@'localhost'; FLUSH PRIVILEGES;"
         mariadb -h "$DB_HOST" -u "$DB_USER" -p"$DB_PASS" "$DB_NAME" < "$BACKUP_FILE" 2>&1
         execute_mariadb_command -e "ALTER TABLE DROPBOXES ADD COLUMN IF NOT EXISTS CODING_FORMAT int(11) NOT NULL default -1 AFTER CREATE_GROUP;"
+
+        # The imported dump is a v4.3.0 schema; upgrade it to v4.4.1 so the
+        # installed v4.4.1 daemons can start
+        echo "Upgrading imported DB schema to v4.4.1..."
+        sudo rddbmgr --modify
     else
         echo "Backup database payload not discovered. Skipping import."
     fi
@@ -353,10 +360,13 @@ GRANT ALL PRIVILEGES ON Rivendell.* TO 'rduser'@'localhost';
 FLUSH PRIVILEGES;
 EOF
     # v4.4.1 ships no static schema/rivendell.sql dump - the schema is built
-    # and upgraded by rddbmgr. The rivendell package's postinst already calls
+    # by rddbmgr. The rivendell package's postinst already calls
     # `rddbmgr --modify`, but it ran before the DB/rduser existed and failed
-    # ("Access denied for user 'rduser'@'localhost'"), so run it again now.
-    sudo rddbmgr --modify
+    # ("Access denied for user 'rduser'@'localhost'"). Now that the DB exists
+    # but is empty, --modify has no schema version to upgrade from and aborts
+    # ("unable to determine DB schema, aborting"), so use --create to build
+    # the v4.4.1 schema from scratch.
+    sudo rddbmgr --create
 
     # 8. Service Registration
     sudo systemctl daemon-reload
@@ -471,3 +481,6 @@ else
     if ! step_completed "fix_pypad_syntax"; then fix_pypad_syntax; fi
     if ! step_completed "enable_firewall"; then enable_firewall; fi
     if ! step_completed "harden_ssh"; then harden_ssh; fi
+fi
+
+echo "Build Process Completed Successfully."

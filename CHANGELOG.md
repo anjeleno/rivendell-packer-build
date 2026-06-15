@@ -1,4 +1,13 @@
 # Changelog
+## v0.26.7 - 2026-06-15
+### Changes:
+- **Fix `install_rivendell` step 7 failure**: `sudo rddbmgr --modify` (added in v0.26.6) failed with `rddbmgr: unable to determine DB schema, aborting` and killed the build via `set -e`, immediately after `CREATE DATABASE IF NOT EXISTS Rivendell` - all 5 `.deb` packages installed and configured successfully, but the database step never got further.
+- **Root cause**: `--modify` upgrades an *existing* schema to the current version. The database was just created and is completely empty, so `rddbmgr` has no schema version to read and aborts instead of building one.
+- **Fix**: use `sudo rddbmgr --create` to build the v4.4.1 schema from scratch in the empty database.
+- **Fix invalid SQL in `import_sql_backup`**: `DROP TABLE IF EXISTS \`*\`;` is not valid MariaDB syntax (`*` isn't a wildcard for table names). Replaced with `DROP DATABASE IF EXISTS Rivendell; CREATE DATABASE Rivendell; GRANT ...` to cleanly wipe the `rddbmgr --create` schema before importing the `RDDB_v430_Cloud.sql` payload.
+- **Fix missing post-import schema upgrade**: importing the v4.3.0 SQL payload reverts the schema to v4.3.0, which the installed v4.4.1 daemons can't use. Added `sudo rddbmgr --modify` immediately after the import to upgrade the imported schema to v4.4.1.
+- **Fix script-ending syntax error**: the final `if [[ "$INSTALL_TYPE" == "3" ]]; then ... else ... ` block (introduced in v0.23.0) was missing its closing `fi`, making the script fail `bash -n`. This wasn't hit by prior builds because they always aborted earlier in `install_rivendell`, but would have broken any build that got past step 7. Added the closing `fi` and a final `echo "Build Process Completed Successfully."`.
+
 ## v0.26.6 - 2026-06-14
 ### Changes:
 - **Fix `install_rivendell` step 7 failure**: `mariadb -u rduser ... Rivendell < .../schema/rivendell.sql` failed with "No such file or directory" - all 5 `.deb` packages installed and configured successfully (v0.26.5 fix confirmed working!), but the database step still referenced a static `schema/rivendell.sql` dump that no longer exists in v4.4.1.
